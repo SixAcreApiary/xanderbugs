@@ -8,6 +8,32 @@ const LEGS = [
   { x: 10, angle: 2.25 }   // metathorax, in front of the waist
 ];
 
+// Wings, from Vespula worker measurements: body 12-15 mm, forewing ~8-10.5 mm (about 0.69 of the body), so
+// at rest they reach nearly to the tip of the abdomen. Like all social wasps, a yellowjacket folds each
+// forewing lengthwise when resting, so it shows as a narrow smoky strip with a darker leading edge, hinged on
+// the side of the thorax and lying back along that side of the body. Body units: head front x = 44, sting
+// tip x = -50.
+export const BODY_FRONT = 44, BODY_TIP = -50;
+export const WING = {
+  root: { x: 22, y: 7.5 },   // the side of the mesothorax
+  spread: 0.12,              // radians each folded wing angles out from the midline
+  length: ((BODY_FRONT - BODY_TIP) * 9.25) / 13.5,
+  width: 10                  // folded: about half the open wing's width (open ~0.3 of its length)
+};
+
+// Outline of a folded forewing (root at 0, tip at x = len): a narrow strip, slightly wider toward the end,
+// with a rounded tip.
+export function foldedWingOutline(len, width, side, n = 16) {
+  const half = t => (width / 2) * Math.min(1, 0.55 + 0.6 * t) * Math.sqrt(Math.max(0, 1 - t ** 6));
+  const lead = [], trail = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    lead.push([t * len, -side * half(t)]);
+    trail.push([t * len, side * half(t)]);
+  }
+  return [...lead, ...trail.reverse()];
+}
+
 const YELLOW = ['#ffe25a', '#e8b812', '#7a5a04'];
 const BLACK = ['#3a3630', '#141210', '#040302'];
 
@@ -43,8 +69,8 @@ export default {
   draw(ctx, bug) {
     const L = bug.light;
     // Wings buzz in short bursts while it stands still, as wasps do before taking off.
-    const buzzing = bug.paused && Math.sin(bug.t * 1.7) > 0.6;
-    const flick = buzzing ? Math.sin(bug.t * 90) * 0.12 : 0;
+    const buzzing = bug.paused && Math.sin(bug.t * 0.7) > 0.92;   // only now and then, and only slightly
+    const flick = bug.loosen ? Math.sin(bug.t * 90) * 0.1 : buzzing ? Math.sin(bug.t * 90) * 0.05 : 0;   // whirring free of a tangle
     withBugFrame(ctx, bug, () => {
       groundShadow(ctx, L, -6, 0, 54, 20);
       for (const side of [-1, 1]) {
@@ -80,22 +106,36 @@ export default {
         ctx.fill();
       }
       specular(ctx, L, 18, 0, 13, 11, 0.3);
-      for (const side of [-1, 1]) {                                        // folded smoky wings
+      for (const side of [-1, 1]) {                                        // wings folded lengthwise, along each side
         ctx.save();
-        ctx.translate(16, side * 4);
-        ctx.rotate(Math.PI + side * (0.14 + flick));
-        ctx.fillStyle = 'rgba(150,140,110,0.32)';
-        ctx.strokeStyle = 'rgba(50,40,20,0.45)';
+        ctx.translate(WING.root.x, side * WING.root.y);
+        ctx.rotate(Math.PI - side * (WING.spread + flick));
+        const len = WING.length, w = WING.width;
+        ctx.fillStyle = 'rgba(150,132,90,0.4)';
+        ctx.strokeStyle = 'rgba(50,40,20,0.5)';
         ctx.lineWidth = 0.6;
         ctx.beginPath();
-        ctx.ellipse(22, 0, 24, 5.5, 0, 0, TAU);
+        foldedWingOutline(len, w, side).forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+        ctx.closePath();
+        ctx.fill();
+        const sheen = ctx.createLinearGradient(0, -w, len, w);                // a faint sheen
+        sheen.addColorStop(0, 'rgba(255,255,255,0)');
+        sheen.addColorStop(0.45, 'rgba(255,250,235,0.22)');
+        sheen.addColorStop(0.65, 'rgba(255,255,255,0)');
+        ctx.fillStyle = sheen;
         ctx.fill();
         ctx.stroke();
+        ctx.strokeStyle = 'rgba(70,48,16,0.75)';                             // darker leading edge, on the outside
+        ctx.lineWidth = 1.6;
         ctx.beginPath();
-        ctx.moveTo(2, 0);
-        ctx.lineTo(40, side * 1.5);
-        ctx.moveTo(8, -2);
-        ctx.lineTo(30, -3.5);
+        ctx.moveTo(1, -side * w * 0.25);
+        ctx.lineTo(len * 0.92, -side * w * 0.42);
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(50,40,20,0.4)';                              // the lengthwise fold
+        ctx.lineWidth = 0.6;
+        ctx.beginPath();
+        ctx.moveTo(4, side * w * 0.05);
+        ctx.lineTo(len * 0.95, side * w * 0.08);
         ctx.stroke();
         ctx.restore();
       }

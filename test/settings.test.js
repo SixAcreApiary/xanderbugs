@@ -97,3 +97,14 @@ test('bug weights: every species gets one, default 5, clamped to 1..10, junk dro
   assert.equal(s.bugs.weights.beetle, 5);
   assert.equal('dragon' in s.bugs.weights, false);
 });
+
+test('life size needs a valid screen calibration; without one it stays off', () => {
+  assert.equal(DEFAULTS.bugs.lifeSize, false);
+  assert.equal(DEFAULTS.bugs.devicePxPerMm, null);
+  const ok = validate({ bugs: { lifeSize: true, devicePxPerMm: 5.25 } });
+  assert.equal(ok.bugs.lifeSize, true);
+  assert.equal(ok.bugs.devicePxPerMm, 5.25);
+  assert.equal(validate({ bugs: { lifeSize: true } }).bugs.lifeSize, false, 'no calibration, no life size');
+  for (const bad of [0, -3, 500, 'x', NaN, {}]) assert.equal(validate({ bugs: { lifeSize: true, devicePxPerMm: bad } }).bugs.devicePxPerMm, null, `${bad} rejected`);
+  assert.equal(validate({ bugs: { lifeSize: false, devicePxPerMm: 6 } }).bugs.devicePxPerMm, 6, 'a calibration is kept even with life size off');
+});

@@ -1,11 +1,13 @@
 import { Swarm } from './engine.js';
+import { cssPxPerMm } from './lifesize.js';
 
 const crowd = new Set();   // every swarm on this page, so bugs avoid each other across swarms
 import { compositeWithShadow } from './shadow.js';
 
 // Full-viewport, click-through canvas in a closed shadow root so the host page can neither style nor inspect it.
 // Resolves when every bug has left the screen.
-export function releaseSwarm({ species, count, speed = 1, weights, doc = document, win = window, rng = Math.random }) {
+// devicePxPerMm (a screen calibration) draws the bugs at life size, at whatever zoom the page is shown.
+export function releaseSwarm({ species, count, speed = 1, weights, devicePxPerMm = 0, doc = document, win = window, rng = Math.random }) {
   const host = doc.createElement('div');
   host.setAttribute('data-xanderbugs-overlay', '');
   host.style.cssText = 'all:initial;position:fixed;inset:0;pointer-events:none;z-index:2147483647;contain:strict;';
@@ -27,7 +29,8 @@ export function releaseSwarm({ species, count, speed = 1, weights, doc = documen
     canvas.height = layer.height = Math.round(h * dpr);
   };
   fit();
-  const swarm = new Swarm({ species, count, speed, weights, width: w, height: h, rng, crowd });
+  const lifePxPerMm = devicePxPerMm ? cssPxPerMm(devicePxPerMm, win.devicePixelRatio) : 0;
+  const swarm = new Swarm({ species, count, speed, weights, width: w, height: h, rng, crowd, lifePxPerMm });
   const onResize = () => { fit(); swarm.resize(w, h); };
   win.addEventListener('resize', onResize);
 

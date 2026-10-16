@@ -81,3 +81,18 @@ textarea { width: 100%; margin-top: 6px; resize: vertical; }
   .page { padding: 14px 16px 20px; }
   .range-label { min-width: 100%; }
 }
+
+/* Specimen groups: bugs we have several kinds of sit under their own heading, each with All on / All off. */
+.species-actions { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 8px; }
+.species-group + .species-group { margin-top: 16px; }
+.group-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 0 0 6px; }
+.group-head h3 { margin: 0; font-size: 1rem; font-weight: 600; }
+.group-actions { display: flex; gap: 6px; }
+
+/* Life size: the credit-card calibration. */
+.life { display: grid; gap: 6px; }
+.life-toggle { display: flex; align-items: baseline; gap: 0.5em; flex-wrap: wrap; }
+.life summary { cursor: pointer; }
+.card-wrap { overflow-x: auto; padding: 6px 0; }
+#card { border: 2px dashed currentColor; border-radius: 3.5%/5.5%; box-sizing: border-box; }
+.card-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; }

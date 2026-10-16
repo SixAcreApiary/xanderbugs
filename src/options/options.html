@@ -42,8 +42,28 @@
       </div>
     </section>
 
+    <section class="life" aria-label="Life size">
+      <label class="life-toggle"><input type="checkbox" id="life-size"> <b>Life size</b>
+        <span class="hint" id="life-hint">Draw every bug at its real size on this screen.</span></label>
+      <details id="calibrate">
+        <summary>Calibrate this screen</summary>
+        <p class="hint">Hold a bank card (or any standard ID-sized card, 85.6 &times; 54 mm) flat against the screen over the outline below, and drag the slider until the outline exactly matches the card's edges.</p>
+        <div class="card-wrap"><div id="card" aria-hidden="true"></div></div>
+        <div class="card-row">
+          <label for="card-size" class="range-label">Card outline</label>
+          <input type="range" id="card-size" min="120" max="1100" step="1">
+          <output id="card-out" for="card-size"></output>
+        </div>
+        <p class="hint">The calibration is for this screen only. If you move the browser to a different screen, or change this screen's resolution, calibrate again. Browser zoom is allowed for automatically. At life size some bugs, like cockroaches and house centipedes, are big.</p>
+      </details>
+    </section>
+
     <section aria-label="Which bugs can appear">
-      <div class="specimens" id="species"></div>
+      <div class="species-actions" role="group" aria-label="All bugs">
+        <button type="button" class="quiet" id="all-on">All on</button>
+        <button type="button" class="quiet" id="all-off">All off</button>
+      </div>
+      <div id="species"></div>
       <div class="below-grid">
         <p class="hint">Computer-generated approximations for a bit of fun, not scientifically accurate depictions.</p>
         <button type="button" id="release">Release bugs on this page</button>

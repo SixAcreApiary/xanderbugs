@@ -43,3 +43,9 @@ test('spawn weights are optional but must be known species with whole numbers 1.
   assert.equal(isValidMessage({ ...base, weights: { dragon: 3 } }), false);
   assert.equal(isValidMessage({ ...base, weights: [5] }), false);
 });
+
+test('spawn messages may carry a screen calibration within range', () => {
+  const base = { target: 'content', type: 'spawn', species: ['ant'], count: 1 };
+  assert.ok(isValidMessage({ ...base, devicePxPerMm: 5 }));
+  for (const bad of [0, 100, '5', null]) assert.ok(!isValidMessage({ ...base, devicePxPerMm: bad }), `${bad} rejected`);
+});
