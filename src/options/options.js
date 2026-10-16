@@ -1,4 +1,4 @@
-import { loadSettings, saveSettings, onSettingsChanged, DEFAULTS, LIMITS, BUG_SPECIES } from '../lib/settings.js';
+import { loadSettings, saveSettings, onSettingsChanged, DEFAULTS, LIMITS, BUG_SPECIES, OTHER_GROUP } from '../lib/settings.js';
 import { parseBlocklist } from '../lib/blocklist.js';
 import { createPreviewBug, drawPreview } from '../lib/bugs/preview.js';
 import { releaseSwarm } from '../lib/bugs/overlay.js';
@@ -39,26 +39,50 @@ const weightLabel = v => WEIGHT_WORDS[Math.min(9, Math.max(0, v - 1))];
 
 // Each cell: a label (picture + checkbox + name) that toggles the bug, and, outside that label so
 // dragging it can never toggle the checkbox, a slider for how often this bug is picked.
+// Ticks or unticks every bug in a scope (the whole page, or one group's grid) whatever its current state.
+function setAll(scope, on) {
+  for (const input of scope.querySelectorAll('input[type=checkbox]')) input.checked = on;
+  collectAndSave();
+}
+
+// Bugs we have several kinds of are grouped under a heading, each group with its own All on / All off.
 function renderSpecies() {
-  const box = $('species');
-  box.replaceChildren(...BUG_SPECIES.map(s => {
-    const input = el('input', { type: 'checkbox', value: s.id, checked: settings.bugs.species.includes(s.id) });
-    input.addEventListener('change', collectAndSave);
-    const canvas = el('canvas');
-    canvas.setAttribute('aria-hidden', 'true');
-    previews.push({ canvas, id: s.id });
-    const weightId = `weight-${s.id}`;
-    const slider = el('input', { type: 'range', id: weightId, min: LIMITS.weight.min, max: LIMITS.weight.max, step: 1, value: settings.bugs.weights[s.id] });
-    slider.dataset.species = s.id;
-    const out = el('output', { textContent: weightLabel(settings.bugs.weights[s.id]) });
-    out.htmlFor = weightId;
-    slider.addEventListener('input', () => { out.textContent = weightLabel(Number(slider.value)); collectAndSave(); });
-    return el('div', { className: 'specimen' }, [
-      el('label', { className: 'pick' }, [canvas, el('span', { className: 'tag' }, [input, el('b', { textContent: s.label })])]),
-      el('div', { className: 'weight' }, [el('label', { htmlFor: weightId, textContent: 'How often' }), slider, out])
-    ]);
+  const groups = new Map([[OTHER_GROUP, []]]);
+  for (const s of BUG_SPECIES) {
+    const g = s.group ?? OTHER_GROUP;
+    if (!groups.has(g)) groups.set(g, []);
+    groups.get(g).push(s);
+  }
+  $('species').replaceChildren(...[...groups].map(([name, list]) => {
+    const grid = el('div', { className: 'specimens' }, list.map(specimenCell));
+    const on = el('button', { type: 'button', className: 'quiet', textContent: 'All on' });
+    const off = el('button', { type: 'button', className: 'quiet', textContent: 'All off' });
+    on.setAttribute('aria-label', `All ${name.toLowerCase()} on`);
+    off.setAttribute('aria-label', `All ${name.toLowerCase()} off`);
+    on.addEventListener('click', () => setAll(grid, true));
+    off.addEventListener('click', () => setAll(grid, false));
+    const head = el('div', { className: 'group-head' }, [el('h3', { textContent: name }), el('span', { className: 'group-actions' }, [on, off])]);
+    return el('section', { className: 'species-group' }, [head, grid]);
   }));
   startPreviews();
+}
+
+function specimenCell(s) {
+  const input = el('input', { type: 'checkbox', value: s.id, checked: settings.bugs.species.includes(s.id) });
+  input.addEventListener('change', collectAndSave);
+  const canvas = el('canvas');
+  canvas.setAttribute('aria-hidden', 'true');
+  previews.push({ canvas, id: s.id });
+  const weightId = `weight-${s.id}`;
+  const slider = el('input', { type: 'range', id: weightId, min: LIMITS.weight.min, max: LIMITS.weight.max, step: 1, value: settings.bugs.weights[s.id] });
+  slider.dataset.species = s.id;
+  const out = el('output', { textContent: weightLabel(settings.bugs.weights[s.id]) });
+  out.htmlFor = weightId;
+  slider.addEventListener('input', () => { out.textContent = weightLabel(Number(slider.value)); collectAndSave(); });
+  return el('div', { className: 'specimen' }, [
+    el('label', { className: 'pick' }, [canvas, el('span', { className: 'tag' }, [input, el('b', { textContent: s.label })])]),
+    el('div', { className: 'weight' }, [el('label', { htmlFor: weightId, textContent: 'How often' }), slider, out])
+  ]);
 }
 
 let previewItems = [];
@@ -107,6 +131,10 @@ function syncForm() {
   set('bug-speed', 'value', Math.round(settings.bugs.speed * 100));
   showSpeed();
   set('blocklist', 'value', settings.blocklist.join('\n'));
+  calibration = settings.bugs.devicePxPerMm;
+  set('life-size', 'checked', settings.bugs.lifeSize);
+  set('card-size', 'value', Math.round(cardWidthFor(calibration)));
+  showCard();
   for (const input of $('species').querySelectorAll('input[type=checkbox]')) input.checked = settings.bugs.species.includes(input.value);
   for (const r of $('species').querySelectorAll('input[type=range]')) {
     if (document.activeElement !== r) r.value = settings.bugs.weights[r.dataset.species];
@@ -131,7 +159,9 @@ function collect() {
       perSwarmMin: $('swarm-min').value, perSwarmMax: $('swarm-max').value,
       speed: Number($('bug-speed').value) / 100,
       species: checked('species'),
-      weights: Object.fromEntries([...$('species').querySelectorAll('input[type=range]')].map(r => [r.dataset.species, Number(r.value)]))
+      weights: Object.fromEntries([...$('species').querySelectorAll('input[type=range]')].map(r => [r.dataset.species, Number(r.value)])),
+      lifeSize: $('life-size').checked,
+      devicePxPerMm: calibration
     },
     blocklist: parsed
   };
@@ -162,10 +192,33 @@ function reflectClamped() {
   for (const [id, v] of Object.entries(map)) if (document.activeElement !== $(id)) $(id).value = v;
 }
 
+// Life size: a credit-card calibration. The card outline's width is in CSS pixels; the calibration is stored as
+// device pixels per mm, so pages at any zoom can turn it back into CSS pixels per mm.
+const CARD_MM = [85.6, 53.98];
+let calibration = null;
+const cardWidthFor = devicePxPerMm => (devicePxPerMm ? devicePxPerMm / (window.devicePixelRatio || 1) : 96 / 25.4) * CARD_MM[0];
+function showCard() {
+  const w = Number($('card-size').value);
+  $('card').style.width = `${w}px`;
+  $('card').style.height = `${(w * CARD_MM[1]) / CARD_MM[0]}px`;
+  $('card-out').textContent = calibration ? `Calibrated (${(w / CARD_MM[0]).toFixed(2)} px per mm)` : 'Not calibrated yet';
+  $('life-size').disabled = !calibration;
+  $('life-hint').textContent = calibration ? 'Draw every bug at its real size on this screen.' : 'Calibrate this screen first (below).';
+  if (!calibration) $('calibrate').open = true;
+}
+$('card-size').addEventListener('input', () => {
+  calibration = (Number($('card-size').value) / CARD_MM[0]) * (window.devicePixelRatio || 1);
+  showCard();
+  collectAndSave();
+});
+$('life-size').addEventListener('change', collectAndSave);
+
+$('all-on').addEventListener('click', () => setAll($('species'), true));
+$('all-off').addEventListener('click', () => setAll($('species'), false));
 $('release').addEventListener('click', () => {
   const species = settings.bugs.species.length ? settings.bugs.species : DEFAULTS.bugs.species;
   const count = Math.max(settings.bugs.perSwarmMax, 3);
-  releaseSwarm({ species, count, speed: settings.bugs.speed, weights: settings.bugs.weights });
+  releaseSwarm({ species, count, speed: settings.bugs.speed, weights: settings.bugs.weights, devicePxPerMm: settings.bugs.lifeSize ? settings.bugs.devicePxPerMm : 0 });
   setStatus(`Released ${count} bug${count === 1 ? '' : 's'}.`);
 });
 $('reset').addEventListener('click', async () => {

@@ -58,6 +58,7 @@ export default {
   wander: 1.6,
   stride: 8,
   trail: true,
+  abundance: 0.4,   // turns up less than other bugs at any slider setting
   draw(ctx, bug) {
     const pal = PALETTES[bug.variant < 0.6 ? 0 : 1];
     const k = bug.size / 100;

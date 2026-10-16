@@ -152,6 +152,51 @@ test('bug frequency sliders save without toggling the bug on or off', async () =
   await page.close();
 });
 
+test('options page groups ants, honey bees and bumble bees, with All on / All off overall and per group', async () => {
+  const page = await context.newPage();
+  await page.goto(`chrome-extension://${extId}/src/options/options.html`);
+  await page.locator('#species input[value=ant]').waitFor();
+  const heads = await page.locator('#species .species-group h3').allTextContents();
+  for (const g of ['Other bugs', 'Ants', 'Honey bees', 'Bumble bees']) assert.ok(heads.includes(g), `${g} heading`);
+  const stored = () => sw.evaluate(async () => (await chrome.storage.local.get('settings')).settings.bugs.species);
+  const all = await page.locator('#species input[type=checkbox]').count();
+  await page.click('#all-off');
+  await page.waitForTimeout(600);
+  assert.equal((await stored()).length, 0, 'All off unticks every bug');
+  assert.equal(await page.locator('#species input[type=checkbox]:checked').count(), 0);
+  await page.click('#all-on');
+  await page.waitForTimeout(600);
+  assert.equal((await stored()).length, all, 'All on ticks every bug');
+  const ants = page.locator('.species-group', { has: page.locator('h3', { hasText: 'Ants' }) });
+  await ants.getByRole('button', { name: 'All ants off' }).click();
+  await page.waitForTimeout(600);
+  const left = await stored();
+  assert.ok(!left.includes('ant') && !left.includes('fireant'), 'group All off unticks only that group');
+  assert.ok(left.includes('italianbee') && left.includes('spider'), 'other groups untouched');
+  await page.click('#reset');
+  await page.close();
+});
+
+test('life size: calibrating with the card outline saves the screen and unlocks the switch', async () => {
+  const page = await context.newPage();
+  await page.goto(`chrome-extension://${extId}/src/options/options.html`);
+  await page.locator('#card-size').waitFor();
+  assert.equal(await page.locator('#life-size').isDisabled(), true, 'locked until calibrated');
+  await page.locator('#card-size').fill('428');
+  await page.locator('#card-size').dispatchEvent('input');
+  await page.waitForTimeout(600);
+  const dpr = await page.evaluate(() => window.devicePixelRatio);
+  const bugs = () => sw.evaluate(async () => (await chrome.storage.local.get('settings')).settings.bugs);
+  assert.ok(Math.abs((await bugs()).devicePxPerMm - (428 / 85.6) * dpr) < 0.01, 'stored as device pixels per mm');
+  assert.equal(await page.locator('#card').evaluate(el => Math.round(el.getBoundingClientRect().width)), 428, 'outline drawn at the chosen width');
+  assert.equal(await page.locator('#life-size').isDisabled(), false, 'unlocked');
+  await page.locator('#life-size').check();
+  await page.waitForTimeout(600);
+  assert.equal((await bugs()).lifeSize, true);
+  await page.click('#reset');
+  await page.close();
+});
+
 test('two settings tabs and the right-click switch never undo each other\'s choices', async () => {
   const base = `chrome-extension://${extId}/src`;
   const A = await context.newPage();

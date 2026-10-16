@@ -2,7 +2,7 @@
 
 If you like this extension, consider [buying me a coffee](https://buymeacoffee.com/xanderphillips).
 
-A Chrome extension (Manifest V3). While you browse, it sends procedurally drawn bugs (ants, cockroaches, centipedes, spiders, silverfish, beetles, earwigs, yellowjackets, stink bugs, bedbugs, house centipedes) scurrying across the page. Walking bugs give each other room and steer round one another, and ants that meet head on sometimes stop face to face to touch antennae.
+A Chrome extension (Manifest V3). While you browse, it sends procedurally drawn bugs (seven kinds of ant, cockroaches, centipedes, spiders, silverfish, beetles, earwigs, yellowjackets, stink bugs, bedbugs, house centipedes, seven breeds of western honey bee and seven species of bumble bee) scurrying across the page. Walking bugs give each other room and steer round one another, ants that meet head on sometimes stop face to face to touch antennae or follow each other's scent trails, prey bolt from predators, and honey bees now and then perform a waggle dance.
 
 Everything is configurable on the settings page: bug sightings per hour, bugs per sighting, crawl speed, which bugs can appear and how often each one is picked, and sites where bugs should never appear.
 

@@ -180,9 +180,33 @@ export function tetrapodGait(bug, leg, side) {
   return { offset: frac((leg % 2 ? 0.5 : 0) + (side > 0 ? 0.5 : 0)), duty: dutyFactor(bug) };
 }
 
+// Turning is modelled as the feet walking round the body centre; this is the lever (as a fraction of
+// body length) that sets how much one side's gait phase advances per radian turned.
+export const TURN_RADIUS = 0.35;
+const TURN_UNITS = TURN_RADIUS * 100;   // the same lever in body-drawing units
+
+// Gait drive for one side (side: -1 left, +1 right) from forward travel and rotation (turn * lever,
+// +turn = clockwise on screen, so the left side is outer). The rotation term also covers the sideways
+// stepping that front and hind feet need when the body swivels. It is never negative: feet that must
+// move backward (the inner side of a tight turn) get that from their stride direction, so the drive
+// doesn't flip sign as a side passes from stepping forward to stepping back, which snapped legs.
+export function sideDrive(fwd, rot, side) {
+  return Math.hypot(fwd - side * rot, rot);
+}
+
+// Direction a foot strides in, in the body frame, per unit of its side's gait drive. Walking straight it is
+// straight ahead; when turning, each foot steps along its own arc round the body centre, so a planted foot
+// stays put on the ground instead of being dragged round as if the bug stood on a turntable.
+export function strideDirection(bug, side, rest) {
+  const t = bug.turnMix ?? 0, fwd = 1 - Math.abs(t);
+  const s = sideDrive(fwd, t, side);
+  return { x: (fwd - t * rest.y / TURN_UNITS) / s, y: (t * rest.x / TURN_UNITS) / s };
+}
+
 // Where a walking foot is right now. Returns the foot point and how lifted it is (0 planted .. 1 apex).
 export function footPosition(bug, side, rest, offset, duty, maxTravel) {
-  const travel = Math.min(maxTravel, duty * (bug.stridePx ?? 0) * (100 / bug.size));
+  const dir = strideDirection(bug, side, rest);
+  const travel = Math.min(maxTravel / Math.max(1, Math.hypot(dir.x, dir.y)), duty * (bug.stridePx ?? 0) * (100 / bug.size));
   const phi = frac(legPhase(bug, side) / TAU + offset);
   let u, lift = 0;
   if (phi < duty) {
@@ -192,7 +216,21 @@ export function footPosition(bug, side, rest, offset, duty, maxTravel) {
     u = -0.5 + smooth(s);                       // swing: lifted and carried forward
     lift = Math.sin(Math.PI * s);
   }
-  return { x: rest.x + u * travel, y: rest.y * (1 - 0.06 * lift), lift };
+  const p = groundPoint(bug, side, rest, u * travel);
+  return { x: p.x, y: p.y * (1 - 0.06 * lift), lift };
+}
+
+// Where a point on the ground that lies under `rest` now will appear, in the body frame, once the body has
+// moved back by `ahead` units of its side's stride. Along a turn that is an arc round the turning centre.
+function groundPoint(bug, side, rest, ahead) {
+  const t = bug.turnMix ?? 0, fwd = 1 - Math.abs(t);
+  const lam = -ahead / sideDrive(fwd, t, side);     // body travel (units) since the foot was at rest
+  const a = (t * lam) / TURN_UNITS;                  // body rotation over that travel
+  const sinc = Math.abs(a) < 1e-6 ? 1 : Math.sin(a) / a;
+  const cosc = Math.abs(a) < 1e-6 ? a / 2 : (1 - Math.cos(a)) / a;
+  const dx = rest.x - fwd * lam * sinc, dy = rest.y - fwd * lam * cosc;
+  const c = Math.cos(a), sn = Math.sin(a);
+  return { x: dx * c + dy * sn, y: -dx * sn + dy * c };
 }
 
 // Two-bone IK: knee position for a hip, a foot target and bone lengths a (femur) and b (rest of leg).
@@ -211,11 +249,24 @@ export function solveKnee(hx, hy, fx, fy, a, b, side) {
 }
 
 // Draws a jointed leg from hip to foot. segs: [[femur, bend, width], [tibia, bend, width], [tarsus?, bend, width]].
-export function drawJointedLeg(ctx, hx, hy, foot, side, segs, color) {
+// Joint positions of a jointed leg reaching for a foot: hip, knee, ankle (where the tarsus starts; the foot
+// itself for two-part legs) and foot. Anything attached to a leg segment can be placed from these.
+export function legJoints(hx, hy, foot, side, segs) {
   const a = segs[0][0];
   const lower = segs.slice(1);
   const b = lower.reduce((s, [len]) => s + len, 0);
   const { knee, foot: f } = solveKnee(hx, hy, foot.x, foot.y, a, b, side);
+  if (lower.length === 1) return { hip: { x: hx, y: hy }, knee, ankle: f, foot: f };
+  // Split the lower leg into tibia + tarsus, with the ankle nudged outward so the tarsus angles naturally.
+  const t = lower[0][0] / b;
+  const ux = f.x - knee.x, uy = f.y - knee.y, len = Math.hypot(ux, uy) || 1;
+  const ankle = { x: knee.x + ux * t - (uy / len) * side * b * 0.06, y: knee.y + uy * t + (ux / len) * side * b * 0.06 };
+  return { hip: { x: hx, y: hy }, knee, ankle, foot: f };
+}
+
+export function drawJointedLeg(ctx, hx, hy, foot, side, segs, color) {
+  const { knee, ankle, foot: f } = legJoints(hx, hy, foot, side, segs);
+  const lower = segs.slice(1);
   ctx.strokeStyle = color;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
@@ -231,10 +282,6 @@ export function drawJointedLeg(ctx, hx, hy, foot, side, segs, color) {
     seg(knee.x, knee.y, f.x, f.y, lower[0][2]);
     return;
   }
-  // Split the lower leg into tibia + tarsus, with the ankle nudged outward so the tarsus angles naturally.
-  const t = lower[0][0] / b;
-  const ux = f.x - knee.x, uy = f.y - knee.y, len = Math.hypot(ux, uy) || 1;
-  const ankle = { x: knee.x + ux * t - (uy / len) * side * b * 0.06, y: knee.y + uy * t + (ux / len) * side * b * 0.06 };
   seg(knee.x, knee.y, ankle.x, ankle.y, lower[0][2]);
   seg(ankle.x, ankle.y, f.x, f.y, lower[1][2]);
 }
@@ -269,12 +316,13 @@ export function legPivot(hy, side, segs, edge = 0) {
 }
 
 // One walking leg: neutral pose from (angle, segs), foot planted/swung by the gait, knee by IK.
-// Returns the foot, plus the visible pivot and segments (py, segs) for drawing overlays on the same leg.
+// Returns the foot, plus the visible pivot and segments (py, segs) for drawing overlays on the same leg, and
+// the joints it was drawn with (joints) so things carried on a segment can move with it.
 export function walkLeg(ctx, bug, { hx, hy, side, angle, segs, offset, duty, color, edge = 0, reach = 0.6 }) {
   const rest = restFoot(hx, hy, side, angle, segs);
   const total = segs.reduce((s, [len]) => s + len, 0);
   const foot = footPosition(bug, side, rest, offset, duty, total * reach);
   const pivot = legPivot(hy, side, segs, edge);
   drawJointedLeg(ctx, hx, pivot.py, foot, side, pivot.segs, color);
-  return Object.assign(foot, pivot);
+  return Object.assign(foot, pivot, { joints: legJoints(hx, pivot.py, foot, side, pivot.segs) });
 }
