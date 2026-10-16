@@ -1731,7 +1731,7 @@ test('a bug stuck against another gently buzzes loose instead of staying stuck',
   const q = createBug('italianbee', { width: 1000, height: 700, rng: seeded(1) });
   Object.assign(q, { caste: 'queen', size: SPECIES.italianbee.castes.queen.size[0], x: 500, y: 350, heading: 0, entered: true, fullyIn: true, paused: true, stateTime: 999, speed: 0 });
   const y = createBug('yellowjacket', { width: 1000, height: 700, rng: seeded(2) });
-  Object.assign(y, { x: 500, y: 350 + q.size * 0.36, heading: -Math.PI / 2, entered: true, huntCooldown: 99, stuckCooldown: 99 });
+  Object.assign(y, { x: 500, y: 350 + q.size * 0.36, heading: -Math.PI / 2, entered: true, huntCooldown: 99 });
   y.species = { ...y.species, pauseRate: 0 };
   y.waypoints = [{ x: 500, y: 0 }, { x: 500, y: -300 }];   // its way lies straight through the queen
   let loosened = false, stuckFor = 0, longest = 0;
