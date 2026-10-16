@@ -1,16 +1,16 @@
 {
   "name": "xanderbugs",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "description": "Xanderbugs - a privacy-respecting Chrome extension that sends bugs across your screen",
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs",
     "icons": "node scripts/make-icons.mjs",
-    "screenshots": "npm run build && node scripts/screenshot-options.mjs",
+    "screenshots": "npm run build && node scripts/screenshots.mjs",
     "test": "node --test \"test/*.test.js\"",
     "test:e2e": "npm run build && node --test \"test/e2e/*.test.js\"",
-    "zip": "npm run build && python3 -c \"import shutil; shutil.make_archive('xanderbugs', 'zip', 'dist')\""
+    "zip": "npm run build && python3 scripts/package.py"
   },
   "devDependencies": {
     "esbuild": "0.28.2",

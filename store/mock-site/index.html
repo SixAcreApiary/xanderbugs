@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Potting Bench</title>
+<!-- Fictional site for Chrome Web Store screenshots and video. All text is original; no images, fonts or remote assets. -->
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #fff; color: #2b2b2b; font: 17px/1.6 Georgia, "Times New Roman", serif; }
+  a { color: #3d6b35; }
+  header { border-bottom: 1px solid #e4e4e4; }
+  .bar { max-width: 1120px; margin: 0 auto; padding: 18px 32px; display: flex; align-items: baseline; justify-content: space-between; }
+  .logo { font-size: 28px; font-weight: bold; color: #3d6b35; letter-spacing: .5px; }
+  .logo span { color: #a0662b; }
+  nav a { font: 15px system-ui, sans-serif; color: #555; text-decoration: none; margin-left: 24px; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 32px; display: grid; grid-template-columns: 1fr 300px; gap: 48px; }
+  .kicker { font: 600 13px system-ui, sans-serif; text-transform: uppercase; letter-spacing: 1.5px; color: #a0662b; }
+  h1 { font-size: 40px; line-height: 1.15; margin: 6px 0 10px; }
+  .meta { font: 14px system-ui, sans-serif; color: #888; margin-bottom: 24px; }
+  .hero { height: 260px; border-radius: 6px; margin-bottom: 24px;
+    background: linear-gradient(180deg, #cfe6f2 0 45%, #9cc77f 45% 62%, #7aa95c 62% 78%, #8a5a36 78%); position: relative; overflow: hidden; }
+  .hero::before, .hero::after { content: ""; position: absolute; bottom: 22%; width: 120px; height: 120px; border-radius: 50%; background: #5d8f44; }
+  .hero::before { left: 12%; } .hero::after { right: 18%; width: 160px; height: 160px; background: #4f7f3a; }
+  h2 { font-size: 24px; margin: 28px 0 8px; }
+  aside section { border: 1px solid #e4e4e4; border-radius: 6px; padding: 18px 20px; margin-bottom: 24px; }
+  aside h3 { font: 600 14px system-ui, sans-serif; text-transform: uppercase; letter-spacing: 1px; margin: 0 0 10px; color: #3d6b35; }
+  aside ul { margin: 0; padding-left: 18px; font-size: 15px; }
+  aside li { margin: 6px 0; }
+  .swatch { height: 90px; border-radius: 4px; margin-bottom: 10px; background: linear-gradient(135deg, #f3d9a4, #e7b46b); }
+  .signup input { width: 100%; padding: 8px 10px; border: 1px solid #ccc; border-radius: 4px; font: 15px system-ui, sans-serif; }
+  .signup button { margin-top: 8px; width: 100%; padding: 9px; border: 0; border-radius: 4px; background: #3d6b35; color: #fff; font: 600 15px system-ui, sans-serif; }
+  footer { border-top: 1px solid #e4e4e4; color: #999; font: 13px system-ui, sans-serif; text-align: center; padding: 24px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <div class="logo">The Potting <span>Bench</span></div>
+    <nav><a href="#">Vegetables</a><a href="#">Flowers</a><a href="#">Compost</a><a href="#">Tools</a><a href="#">About</a></nav>
+  </div>
+</header>
+<div class="wrap">
+  <main>
+    <div class="kicker">Late season</div>
+    <h1>Putting the Raised Beds to Sleep for Winter</h1>
+    <div class="meta">By the backyard crew &middot; 6 min read</div>
+    <div class="hero" role="img" aria-label="Illustrated garden bed"></div>
+    <p>The tomatoes have given their last, the beans are crisp brown pods, and the mornings now carry that sharp smell of leaves turning. It is the right moment to tuck the raised beds in for the cold months so they wake up rich and loose in spring.</p>
+    <h2>Clear out, but not too much</h2>
+    <p>Pull spent annuals and anything that showed signs of disease, but leave a few hollow stems standing. They give shelter to the helpful insects that will patrol the beds next year. Chop the healthy leftovers and drop them back onto the soil as a light mulch.</p>
+    <h2>Feed the soil, not the plants</h2>
+    <p>Spread two or three inches of finished compost across each bed. There is no need to dig it in; the worms will do that work slowly over the winter. Top it with shredded leaves to keep the surface from crusting and to hold moisture in place.</p>
+    <h2>Plant a cover crop</h2>
+    <p>A quick sowing of winter rye or crimson clover protects the soil from heavy rain and adds organic matter when you turn it under in March. Scatter the seed by hand, rake it in lightly, and water once if the weather is dry.</p>
+    <p>Finally, clean and oil your hand tools before you hang them up. Future you, standing in the shed on the first warm day, will be grateful.</p>
+  </main>
+  <aside>
+    <section>
+      <h3>This week</h3>
+      <div class="swatch"></div>
+      <ul>
+        <li>Plant garlic cloves, pointy end up</li>
+        <li>Lift and dry dahlia tubers</li>
+        <li>Sow sweet peas indoors</li>
+        <li>Mulch the strawberry patch</li>
+      </ul>
+    </section>
+    <section>
+      <h3>Popular posts</h3>
+      <ul>
+        <li><a href="#">A beginner's guide to hot composting</a></li>
+        <li><a href="#">Five herbs that thrive on a windowsill</a></li>
+        <li><a href="#">Building a trellis from garden prunings</a></li>
+        <li><a href="#">Saving seed from your best peppers</a></li>
+      </ul>
+    </section>
+    <section class="signup">
+      <h3>Seasonal notes</h3>
+      <p style="font-size:15px;margin:0 0 10px">A short letter each season about what to sow and when.</p>
+      <input type="email" placeholder="you@example.com" aria-label="Email address">
+      <button type="button">Sign up</button>
+    </section>
+  </aside>
+</div>
+<footer>The Potting Bench is a fictional site created to demonstrate the Xanderbugs extension.</footer>
+</body>
+</html>
