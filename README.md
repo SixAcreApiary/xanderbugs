@@ -33,6 +33,8 @@ The bugs are computer-generated approximations drawn in code. Their shapes, colo
 
 ## Privacy
 
+Full policy: [PRIVACY.md](PRIVACY.md).
+
 - The only thing stored is the settings object, in `chrome.storage.local` (not `sync`, so it never leaves the device through browser sync).
 - No network requests at all: extension pages run under `connect-src 'none'`, and `test/privacy.test.js` fails the build if network APIs or remote URLs appear in shipped code.
 - The content script reads only `location.hostname`, to check your list of sites without bugs. It never reads page content.
@@ -49,16 +51,25 @@ npm run build          # outputs dist/
 
 Open `chrome://extensions`, turn on Developer mode, choose **Load unpacked**, and select the `dist/` folder.
 
-`npm run zip` produces `xanderbugs.zip` for distribution. `npm run screenshots` regenerates the README screenshots in `docs/screenshots/`. `npm run icons` renders `icons/icon.svg` (a black ant on white) to the PNG toolbar icons; it needs the Playwright Chromium.
+`npm run zip` produces `xanderbugs-v<version>.zip` for the Chrome Web Store. `npm run screenshots` regenerates the README screenshots in `docs/screenshots/` and the store screenshots, promo tile and demo video in `store/` (add `-- --no-video` to skip the video; the `.mp4` needs ffmpeg). `npm run icons` renders `icons/icon.svg` (a black ant on white) to the PNG toolbar icons; it needs the Playwright Chromium.
 
 ## Tests
 
 ```sh
-npm test                       # unit tests: settings, scheduler, blocklist, messages, bug engine, privacy
+npm test                       # unit tests: settings, scheduler, blocklist, messages, bug engine, privacy, store assets
 npx playwright install chromium
 npm run test:e2e               # loads dist/ into headless Chromium and exercises bugs, settings, storage, network
 ```
 
+## Releases and the Chrome Web Store
+
+Pushing a `v*` tag that matches the manifest version runs the tests and attaches `xanderbugs-v<version>.zip` to a GitHub release (`.github/workflows/release.yml`).
+
+[docs/web-store-listing.md](docs/web-store-listing.md) holds the copy-paste text for each Developer Dashboard tab: description, permission justifications, privacy answers and reviewer test instructions. The store images and video are in `store/`, captured from `store/mock-site/`, a fictional site with original text and no third-party assets.
+
+## License
+
+[MIT](LICENSE)
 
 ## Layout
 
@@ -68,3 +79,4 @@ npm run test:e2e               # loads dist/ into headless Chromium and exercise
 | `src/content/content.js` | Bug overlay on web pages (bundled to `content.bundle.js`) |
 | `src/lib/bugs/` | Movement engine, leg/gait system and species renderers |
 | `src/options/` | Settings page |
+| `store/` | Chrome Web Store screenshots, promo tile, demo video and the mock site they are captured from |
