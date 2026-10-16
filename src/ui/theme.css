@@ -1,0 +1,71 @@
+:root {
+  --bg: #1b1b1b;
+  --raised: #272727;
+  --edge: #404040;
+  --fg: #ececec;
+  --fg-dim: #a9a9a9;
+  --accent: #d9d9d9;
+  --accent-deep: #8c8c8c;
+  --ok: #c4c4c4;
+  --danger: #7a7a7a;
+  --serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 16px/1.55 var(--serif);
+}
+
+h1, h2 { font-weight: 600; letter-spacing: 0.01em; margin: 0; }
+
+button {
+  font: inherit;
+  color: var(--bg);
+  background: var(--accent);
+  border: 0;
+  border-radius: 3px;
+  padding: 0.45em 1em;
+  cursor: pointer;
+}
+button:hover { background: #f4f4f4; }
+button.quiet { background: transparent; color: var(--fg-dim); text-decoration: underline; text-underline-offset: 3px; padding: 0.2em 0; }
+button.quiet:hover { color: var(--fg); }
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+input[type=number], textarea {
+  font: inherit;
+  color: var(--fg);
+  background: var(--raised);
+  border: 1px solid var(--edge);
+  border-radius: 3px;
+  padding: 0.3em 0.45em;
+}
+input[type=number] { width: 4.2em; }
+input[type=range] { accent-color: var(--accent); }
+input[type=checkbox] { accent-color: var(--accent); width: 1.05em; height: 1.05em; }
+
+code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.88em; color: var(--fg); }
+
+.switch { display: inline-flex; align-items: center; gap: 0.6em; cursor: pointer; }
+.switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.switch .track {
+  width: 2.6em; height: 1.4em; border-radius: 1em;
+  background: var(--edge); position: relative; transition: background 0.15s;
+}
+.switch .track::after {
+  content: ''; position: absolute; top: 0.2em; left: 0.2em; width: 1em; height: 1em;
+  border-radius: 50%; background: var(--fg-dim); transition: transform 0.15s, background 0.15s;
+}
+.switch input:checked + .track { background: var(--accent-deep); }
+.switch input:checked + .track::after { transform: translateX(1.2em); background: var(--fg); }
+.switch input:focus-visible + .track { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}

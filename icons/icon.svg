@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <title>Xanderbugs</title>
+  <rect width="128" height="128" rx="22" fill="#fff"/>
+  <g fill="none" stroke="#000" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M58 23 L45 19 L37 5 M70 23 L83 19 L91 5"/>
+    <path d="M59 47 L42 40 L33 25 M69 47 L86 40 L95 25"/>
+    <path d="M59 55 L39 57 L24 66 M69 55 L89 57 L104 66"/>
+    <path d="M60 62 L44 78 L36 106 M68 62 L84 78 L92 106"/>
+  </g>
+  <g fill="#000">
+    <ellipse cx="64" cy="30" rx="12.5" ry="11.5"/>
+    <path d="M58 22 Q58 12 63.5 14 L62 20 Z M70 22 Q70 12 64.5 14 L66 20 Z"/>
+    <ellipse cx="64" cy="54" rx="7.5" ry="14"/>
+    <circle cx="64" cy="72" r="5"/>
+    <ellipse cx="64" cy="97" rx="17" ry="21"/>
+  </g>
+</svg>
