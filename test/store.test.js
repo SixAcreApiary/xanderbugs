@@ -65,3 +65,13 @@ test('package script rejects a tag that does not match the manifest version', ()
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /does not match manifest version/);
 });
+
+test('package zip puts the extension and docs inside a xanderbugs/ folder', { skip: !existsSync(path.join(root, 'dist/manifest.json')) && 'run npm run build first' }, () => {
+  const r = spawnSync('python3', [path.join(root, 'scripts/package.py')], { encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  const zip = path.join(root, r.stdout.trim());
+  const list = spawnSync('python3', ['-c', 'import sys,zipfile;print("\\n".join(zipfile.ZipFile(sys.argv[1]).namelist()))', zip], { encoding: 'utf8' });
+  const names = list.stdout.trim().split('\n');
+  assert.ok(names.every(n => n.startsWith('xanderbugs/')), 'every entry is under xanderbugs/');
+  for (const f of ['manifest.json', 'content.bundle.js', 'README.md', 'LICENSE', 'PRIVACY.md']) assert.ok(names.includes(`xanderbugs/${f}`), f);
+});

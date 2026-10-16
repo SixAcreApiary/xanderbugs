@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Zip the built dist/ folder into xanderbugs-v<version>.zip for the Chrome Web Store.
+"""Zip the built dist/ folder (plus README, LICENSE, PRIVACY.md) into xanderbugs-v<version>.zip.
+
+Files sit inside a top-level xanderbugs/ folder, so unzipping gives a folder ready for Load unpacked.
 
 Usage: scripts/package.py [tag]   (run `npm run build` first; `npm run zip` does both)
 If a tag (e.g. v1.0.1) is given, it must match the manifest version.
@@ -12,6 +14,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "dist"
+DOCS = ["README.md", "LICENSE", "PRIVACY.md"]
+FOLDER = "xanderbugs"
 
 
 def main(argv):
@@ -24,15 +28,16 @@ def main(argv):
     if json.loads((DIST / "manifest.json").read_text())["version"] != version:
         sys.exit("dist/ is stale; run `npm run build` first")
 
-    files = sorted(p for p in DIST.rglob("*") if p.is_file())
-    bad = [p for p in files if any(part.startswith("_") for part in p.relative_to(DIST).parts)]
+    files = [(p, p.relative_to(DIST)) for p in sorted(DIST.rglob("*")) if p.is_file()]
+    files += [(ROOT / name, Path(name)) for name in DOCS]
+    bad = [rel for _, rel in files if any(part.startswith("_") for part in rel.parts)]
     if bad:
         sys.exit(f"Chrome rejects files starting with '_': {bad}")
 
     out = ROOT / f"xanderbugs-v{version}.zip"
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
-        for p in files:
-            zf.write(p, p.relative_to(DIST).as_posix())
+        for p, rel in files:
+            zf.write(p, f"{FOLDER}/{rel.as_posix()}")
     print(out.relative_to(ROOT).as_posix())
 
 
