@@ -15,6 +15,7 @@ export function mix(a, b, t) {
 }
 
 export function withBugFrame(ctx, bug, fn) {
+  bug.legPoses = [];   // walking legs drawn this frame add their pose (for tests and diagnostics)
   ctx.save();
   ctx.translate(bug.x, bug.y);
   ctx.rotate(bug.heading);
@@ -217,11 +218,11 @@ export function footPosition(bug, side, rest, offset, duty, maxTravel, hip = nul
   const dir = strideDirection(bug, side, rest);
   const travel = Math.min(maxTravel / Math.max(1, Math.hypot(dir.x, dir.y)), duty * (bug.stridePx ?? 0) * (100 / bug.size));
   const phi = frac(legPhase(bug, side) / TAU + offset);
-  let u, lift = 0;
+  let u, lift = 0, s;
   if (phi < duty) {
     u = 0.5 - phi / duty;                       // planted: slides back under the advancing body
   } else {
-    const s = (phi - duty) / (1 - duty);
+    s = (phi - duty) / (1 - duty);
     u = -0.5 + smooth(s);                       // swing: lifted and carried forward
     lift = Math.sin(Math.PI * s);
     if (hip) {
@@ -235,7 +236,7 @@ export function footPosition(bug, side, rest, offset, duty, maxTravel, hip = nul
     }
   }
   const p = groundPoint(bug, side, rest, u * travel);
-  return { x: p.x, y: p.y * (1 - 0.06 * lift), lift };
+  return { x: p.x, y: p.y * (1 - 0.06 * lift), lift, swing: s };
 }
 
 // Where a point on the ground that lies under `rest` now will appear, in the body frame, once the body has
@@ -269,12 +270,17 @@ export function solveKnee(hx, hy, fx, fy, a, b, side) {
 // Draws a jointed leg from hip to foot. segs: [[femur, bend, width], [tibia, bend, width], [tarsus?, bend, width]].
 // Joint positions of a jointed leg reaching for a foot: hip, knee, ankle (where the tarsus starts; the foot
 // itself for two-part legs) and foot. Anything attached to a leg segment can be placed from these.
+// When the foot comes in closer to the hip than the knee alone can fold (the tibia and tarsus together are much
+// longer than the femur), the ankle folds too, keeping both its segments' lengths, so the foot still reaches.
 export function legJoints(hx, hy, foot, side, segs) {
   const a = segs[0][0];
   const lower = segs.slice(1);
   const b = lower.reduce((s, [len]) => s + len, 0);
-  const { knee, foot: f } = solveKnee(hx, hy, foot.x, foot.y, a, b, side);
+  const d = Math.hypot(foot.x - hx, foot.y - hy);
+  const folded = lower.length > 1 && b - a > d ? Math.max(Math.abs(lower[0][0] - lower[1][0]) + 1e-3, d + a * 0.98) : b;
+  const { knee, foot: f } = solveKnee(hx, hy, foot.x, foot.y, a, Math.min(b, folded), side);
   if (lower.length === 1) return { hip: { x: hx, y: hy }, knee, ankle: f, foot: f };
+  if (folded < b) return { hip: { x: hx, y: hy }, knee, ankle: solveKnee(knee.x, knee.y, f.x, f.y, lower[0][0], lower[1][0], side).knee, foot: f };
   // Split the lower leg into tibia + tarsus, with the ankle nudged outward so the tarsus angles naturally.
   const t = lower[0][0] / b;
   const ux = f.x - knee.x, uy = f.y - knee.y, len = Math.hypot(ux, uy) || 1;
@@ -339,13 +345,33 @@ export function legPivot(hy, side, segs, edge = 0) {
 // One walking leg: neutral pose from (angle, segs), foot planted/swung by the gait, knee by IK.
 // Returns the foot, plus the visible pivot and segments (py, segs) for drawing overlays on the same leg, and
 // the joints it was drawn with (joints) so things carried on a segment can move with it.
-export function walkLeg(ctx, bug, { hx, hy, side, angle, segs, offset, duty, color, edge = 0, reach = 0.6 }) {
+// Planted feet stick to the page (stickyFoot), each leg known by its order among the legs drawn this frame;
+// pass sticky: false for a leg not drawn in the bug's own frame (a centipede's legs ride on its segments). As a
+// spider's, a swinging foot is carried round the hip, folding in a little then reaching out (fold, bulge), and a
+// touched leg flinches (bug.recoil, see touchLegs).
+export function walkLeg(ctx, bug, { hx, hy, side, angle, segs, offset, duty, color, edge = 0, reach = 0.75, sticky = true, fold = 0.06, bulge = 0.03 }) {
   const pivot = legPivot(hy, side, segs, edge);
   const rest = pivot.stub ? restFoot(hx, pivot.py, side, angle, pivot.segs) : restFoot(hx, hy, side, angle, segs);
   const total = (pivot.stub ? pivot.segs : segs).reduce((s, [len]) => s + len, 0);
-  const foot = footPosition(bug, side, rest, offset, duty, total * reach);
-  drawJointedLeg(ctx, hx, pivot.py, foot, side, pivot.segs, color);
-  return Object.assign(foot, pivot, { joints: legJoints(hx, pivot.py, foot, side, pivot.segs) });
+  const index = bug.legPoses?.length, key = sticky && bug.legPoses ? `w${index}` : null;
+  const hip = { x: hx, y: pivot.py, fold, bulge };
+  const planted = stickyFoot(bug, key, footPosition(bug, side, rest, offset, duty, total * reach, hip), total * reach * 0.8);
+  const pull = 1 - RECOIL_PULL * (bug.recoil?.[index] ?? 0);
+  const foot = { ...planted, x: hx + (planted.x - hx) * pull, y: pivot.py + (planted.y - pivot.py) * pull };
+  // The neutral pose has the leg nearly straight, so at the far end of a stride the planted foot would be out of
+  // reach and the drawn foot would skate. The lower leg is made just long enough to reach it there (the feet stay
+  // where the pose puts them; the knee simply bends a little more), using the walking stride, not a running burst's.
+  // The femur keeps its length: a longer one would swing in under the body's edge; and a leg that only shows a stub
+  // of femur from under a shell keeps its pose, as any extra length would fold its knee in under the shell.
+  const travel = Math.min(total * reach, duty * ((bug.stridePx ?? 0) / (bug.run ?? 1)) * (100 / bug.size));
+  const need = (Math.hypot(rest.x - hx, rest.y - pivot.py) + travel / 2) / 0.97;
+  const femur = pivot.segs[0][0], lower = pivot.segs.slice(1).reduce((s, [len]) => s + len, 0);
+  const k = pivot.stub ? 1 : Math.max(1, (need - femur) / lower);
+  const drawn = k > 1 ? pivot.segs.map(([len, b, w], i) => [i ? len * k : len, b, w]) : pivot.segs;
+  drawJointedLeg(ctx, hx, pivot.py, foot, side, drawn, color);
+  const joints = legJoints(hx, pivot.py, foot, side, drawn);
+  bug.legPoses?.push({ ...joints, lift: foot.lift });
+  return Object.assign(foot, pivot, { segs: drawn, joints });
 }
 
 // ---------------------------------------------------------------------------------------------

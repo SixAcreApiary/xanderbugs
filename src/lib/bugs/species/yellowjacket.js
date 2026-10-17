@@ -65,7 +65,7 @@ export default {
   pauseTime: [0.4, 2.2],
   maxTurn: 5,
   wander: 1.5,
-  stride: 10,
+  stride: 12,          // long enough that its legs don't flicker
   draw(ctx, bug) {
     const L = bug.light;
     // Wings buzz in short bursts while it stands still, as wasps do before taking off.

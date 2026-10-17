@@ -19,12 +19,12 @@ const LEGS = [
 const BLACK = ['#5a4a42', '#1c1310', '#060302'];
 export const ANT_BREEDS = [
   { id: 'ant', label: 'Carpenter ants', size: [25.1, 28.9], speed: [60, 100], front: BLACK, gaster: BLACK, leg: '#1a120e' },
-  { id: 'fieldant', label: 'Field ants', size: [18.1, 20.9], speed: [70, 115], front: ['#d8643a', '#a03a18', '#401406'], gaster: BLACK, leg: '#3a1a0c' },
-  { id: 'fireant', label: 'Fire ants', size: [12.1, 13.9], speed: [50, 85], front: ['#d0703a', '#8a3414', '#3a1205'], gaster: ['#7a3a1c', '#3a1608', '#140602'], leg: '#5a230c' },
-  { id: 'pavementant', label: 'Pavement ants', size: [9.8, 11.2], speed: [45, 75], front: ['#5a4232', '#2a1a10', '#0a0604'], gaster: ['#4a3628', '#20140a', '#080402'], leg: '#7a5a3a' },
-  { id: 'odoroushouseant', label: 'Odorous house ants', size: [8.8, 10.2], speed: [55, 90], front: ['#5a4030', '#2a1a10', '#0a0604'], gaster: ['#4a3426', '#22140a', '#080402'], leg: '#3a2818' },
-  { id: 'argentineant', label: 'Argentine ants', size: [7.9, 9.1], speed: [60, 95], front: ['#a0784a', '#6a4a28', '#2a1a0a'], gaster: ['#8a643c', '#5a3c1e', '#22140a'], leg: '#6a4a2a' },
-  { id: 'pharaohant', label: 'Pharaoh ants', size: [6.5, 7.5], speed: [40, 65], front: ['#ecc678', '#c8902c', '#6a4410'], gaster: ['#c89a50', '#8a5a1c', '#3a2208'], leg: '#b8883a' }
+  { id: 'fieldant', label: 'Field ants', size: [18.1, 20.9], speed: [64, 105], front: ['#d8643a', '#a03a18', '#401406'], gaster: BLACK, leg: '#3a1a0c' },
+  { id: 'fireant', label: 'Fire ants', size: [12.1, 13.9], speed: [42, 72], front: ['#d0703a', '#8a3414', '#3a1205'], gaster: ['#7a3a1c', '#3a1608', '#140602'], leg: '#5a230c' },
+  { id: 'pavementant', label: 'Pavement ants', size: [9.8, 11.2], speed: [36, 60], front: ['#5a4232', '#2a1a10', '#0a0604'], gaster: ['#4a3628', '#20140a', '#080402'], leg: '#7a5a3a' },
+  { id: 'odoroushouseant', label: 'Odorous house ants', size: [8.8, 10.2], speed: [44, 72], front: ['#5a4030', '#2a1a10', '#0a0604'], gaster: ['#4a3426', '#22140a', '#080402'], leg: '#3a2818' },
+  { id: 'argentineant', label: 'Argentine ants', size: [7.9, 9.1], speed: [48, 76], front: ['#a0784a', '#6a4a28', '#2a1a0a'], gaster: ['#8a643c', '#5a3c1e', '#22140a'], leg: '#6a4a2a' },
+  { id: 'pharaohant', label: 'Pharaoh ants', size: [6.5, 7.5], speed: [32, 52], front: ['#ecc678', '#c8902c', '#6a4410'], gaster: ['#c89a50', '#8a5a1c', '#3a2208'], leg: '#b8883a' }
 ];
 export const ANT_IDS = ANT_BREEDS.map(b => b.id);
 
@@ -41,7 +41,7 @@ function makeAnt(br) {
     pauseTime: [0.2, 0.9],
     maxTurn: 4.5,
     wander: 1.6,
-    stride: (7 * br.size[0]) / 15,   // steps in proportion to its size
+    stride: (9 * br.size[0]) / 15,   // steps in proportion to its size, as long as its legs reach
     greets: true,   // stops head to head with another ant of its own kind to touch antennae
     scent: true,    // lays a scent trail that other ants of its kind sometimes follow
     backLength: [0.06, 0.15],   // ants only shuffle back a fraction of their length

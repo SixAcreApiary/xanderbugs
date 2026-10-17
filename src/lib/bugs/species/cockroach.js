@@ -1,6 +1,8 @@
 import { withBugFrame, shadedEllipse, specular, groundShadow, walkLeg, insectGait, antenna, bodyEdge } from '../common.js';
 
 const OUTLINE = [[-6, 46, 21], [27, 15, 19]];   // body and pronotum rim
+// The body widens behind the legs, so a femur swung back would pass under it: each leg pivots at the edge of the
+// widest part just behind its hip.
 
 const LEGS = [
   { x: 24, angle: 0.75, segs: [[16, 0, 3.6], [18, -0.35, 2.6], [12, 0.2, 1.6]] },
@@ -14,13 +16,13 @@ export default {
   previewSize: 64,
   // Legs attach only to the thorax (pronotum and wing bases); the test suite checks every hip lies within it.
   anatomy: { legSection: [-6, 42], hips: LEGS.map(l => l.x) },
-  speed: [180, 320],
+  speed: [145, 255],   // brisk, but not so fast that its legs flicker
   pace: { drift: 0.25, dartRate: 0.25, dart: [2, 0.45] },   // speed drift and dart frequency/strength while walking
   pauseRate: 0.6,
   pauseTime: [0.3, 2.2],
   maxTurn: 6,
   wander: 1.1,
-  stride: 22,
+  stride: 20.5,        // as long a step as its front legs can reach
   draw(ctx, bug) {
     const L = bug.light;
     const legColor = '#4a2410';
@@ -28,7 +30,7 @@ export default {
       groundShadow(ctx, L, -4, 0, 56, 28);
       for (const side of [-1, 1]) {
         LEGS.forEach((l, i) => {
-          walkLeg(ctx, bug, { hx: l.x, hy: side * 8, edge: bodyEdge(l.x, OUTLINE) - 8, side, angle: l.angle, segs: l.segs, ...insectGait(bug, i, side), color: legColor });
+          walkLeg(ctx, bug, { hx: l.x, hy: side * 8, edge: Math.max(bodyEdge(l.x, OUTLINE), bodyEdge(l.x - 8, OUTLINE)) - 8, side, angle: l.angle, segs: l.segs, ...insectGait(bug, i, side), color: legColor });
         });
         ctx.strokeStyle = '#3a1a08';                       // cerci
         ctx.lineWidth = 1.6;

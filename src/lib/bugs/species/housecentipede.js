@@ -34,14 +34,14 @@ export default {
   size: [38.1, 43.9],
   previewSize: 34,
   previewShift: 0.45,  // long trailing legs: shift right so they fit the cell
-  speed: [220, 380],
+  speed: [205, 350],
   pace: { drift: 0.2, dartRate: 0.3, dart: [1.8, 0.4] },   // speed drift and dart frequency/strength while walking
   pauseRate: 0.8,
   pauseTime: [0.4, 2.5],
   abundance: 0.4,   // turns up less than other bugs at any slider setting
   maxTurn: 6,
   wander: 1.2,
-  stride: 24,
+  stride: 35,          // long legs, long strides: its legs blur less
   // Legs attach along the whole trunk, one pair per segment; the test suite checks every hip lies within it.
   anatomy: { legSection: [-46, 38], hips: LEGS.map(l => l.hx) },
   draw(ctx, bug) {

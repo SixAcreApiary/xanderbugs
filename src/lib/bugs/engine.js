@@ -975,17 +975,37 @@ const RECOIL_FADE = 0.35;   // s
 const RECOIL_EASE = 15;     // 1/s
 const RECOIL_HOLD = 0.5;    // how far a leg left touching stays drawn back
 const RETOUCH = 1;          // s: touching again sooner than this after contact is the same encounter, not a new flinch
-// Now and then a touch startles one of the pair into a short dash away: the smaller of the two, or between
-// two of a size, the one that was walked into (the slower). Touches also wear on a spider's patience: each new
-// one, and every moment legs stay tangled, adds irritation (fading at IRK_FADE); when it boils over the same
-// candidate gives way with a dash, so a knot of spiders breaks up instead of standing there twitching.
+// Now and then a touch startles one of the pair into a short dash away. Who takes fright follows soft rules (see
+// touchFear): prey from its predator, then the smaller from the bigger (the more so the bigger the gap), and between
+// near equals the one that was walked into (the slower). Touches also wear on a bug's patience: each new one, and
+// every moment legs stay tangled, adds irritation (fading at IRK_FADE); when it boils over the same candidate gives
+// way with a dash, so a knot of bugs breaks up instead of standing there twitching. Social insects among their own
+// colony kind (ants with ants, honey bees with honey bees, bumble bees with bumble bees) jostle all the time: they
+// still flinch, but rarely take fright or lose patience.
 const STARTLE_CHANCE = 0.06;  // per fresh touch
 const STARTLE_ALARM = 0.55;   // alarm it starts with (fades at ALARM_DECAY, so about two thirds of a second of flight)
 const GIVE_WAY_ALARM = 0.9;   // giving way after a tangle is a proper retreat: over a second, to get its legs clear
 const IRK_TOUCH = 1, IRK_TANGLED = 2, IRK_FADE = 0.5, IRK_LIMIT = 3;   // per touch, per s tangled, per s, threshold
+const COLONY_CALM = 0.2;      // how much of the usual startle chance and irritation a social insect has among its own
+const COLONY = new Map([...ANTS.map(s => [s.id, 'ants']), ...BEES.map(s => [s.id, 'honeybees']), ...BUMBLES.map(s => [s.id, 'bumblebees'])]);
+export const sameColony = (b, o) => COLONY.has(b.species.id) && COLONY.get(b.species.id) === COLONY.get(o.species.id);
+
+// How much a touch from o frightens b: being hunted by it counts most, then how much bigger it is (log2 of the
+// size ratio, so twice the size is +1).
+export function touchFear(b, o) {
+  return 2 * (danger(o, b) - danger(b, o)) + Math.log2(o.size / b.size);
+}
+
 export function startleCandidate(b, o) {
-  if (Math.abs(b.size - o.size) > Math.max(b.size, o.size) * 0.05) return b.size < o.size ? b : o;
+  const lean = touchFear(b, o) - touchFear(o, b);
+  if (Math.abs(lean) > 0.15) return lean > 0 ? b : o;
   return Math.abs(b.speed) <= Math.abs(o.speed) ? b : o;
+}
+
+// Chance that a fresh touch from o startles b (when b is the likelier to take fright).
+export function startleChance(b, o) {
+  const lean = Math.max(0, touchFear(b, o) - touchFear(o, b));
+  return STARTLE_CHANCE * Math.min(4, 1 + lean) * (sameColony(b, o) ? COLONY_CALM : 1);
 }
 
 function startle(b, from, alarm = STARTLE_ALARM) {
@@ -995,14 +1015,18 @@ function startle(b, from, alarm = STARTLE_ALARM) {
   b.sprint = 0;
 }
 
+// A touch is a leg meeting another's leg or pressing on its body. The leg flinches either way; a bug whose body
+// is touched counts it too (for its patience and the chance of a fright) though it has no leg to draw back. A bug
+// drawn without leg poses (the scolopendrid) still has a body to be touched.
 export function touchLegs(bugs, others, dt) {
   const world = b => {
-    if (!b.legPoses || b.done || b.delay > 0) return null;
+    if (b.done || b.delay > 0) return null;
     const k = b.size / 100, c = Math.cos(b.heading), s = Math.sin(b.heading);
     const at = p => ({ x: b.x + (p.x * c - p.y * s) * k, y: b.y + (p.x * s + p.y * c) * k });
-    const legs = b.legPoses.map(p => [at(p.hip), at(p.knee), at(p.ankle), at(p.foot)]);
-    const reach = Math.max(...legs.flat().map(p => Math.hypot(p.x - b.x, p.y - b.y)));
-    return { legs, reach };
+    const legs = (b.legPoses ?? []).map(p => [at(p.hip), at(p.knee), at(p.ankle), at(p.foot)]);
+    const body = bodyDiscs(b);
+    const reach = Math.max(b.size * 0.5, ...legs.flat().map(p => Math.hypot(p.x - b.x, p.y - b.y)));
+    return { legs, body, reach };
   };
   const cache = new Map(), get = b => (cache.has(b) ? cache.get(b) : cache.set(b, world(b)).get(b));
   for (const b of bugs) {
@@ -1010,12 +1034,16 @@ export function touchLegs(bugs, others, dt) {
     if (!me) continue;
     const hits = (b.recoilHit ??= []), flinch = (b.recoil ??= []), free = (b.legFree ??= []);   // free: s since leg i last touched
     const by = me.legs.map(() => null);
+    let bodyBy = null;
     for (const o of others) {
       if (o === b) continue;
       const them = get(o);
       if (!them || Math.hypot(o.x - b.x, o.y - b.y) > me.reach + them.reach) continue;
       const touch = (b.size + o.size) * 0.012;
-      me.legs.forEach((leg, i) => { if (!by[i] && them.legs.some(other => legsCross(leg, other, touch))) by[i] = o; });
+      me.legs.forEach((leg, i) => {
+        if (!by[i] && (them.legs.some(other => legsCross(leg, other, touch)) || legOnBody(leg, them.body, touch))) by[i] = o;
+      });
+      if (!bodyBy && them.legs.some(leg => legOnBody(leg, me.body, touch))) bodyBy = o;
     }
     b.irk = Math.max(0, (b.irk ?? 0) - IRK_FADE * dt);
     let fresh = null, tangled = null;
@@ -1026,17 +1054,30 @@ export function touchLegs(bugs, others, dt) {
       free[i] = by[i] ? 0 : (free[i] ?? Infinity) + dt;
       flinch[i] = (flinch[i] ?? 0) + (hits[i] - (flinch[i] ?? 0)) * Math.min(1, dt * RECOIL_EASE);
     });
-    if (fresh) b.irk += IRK_TOUCH;   // once per touch, however many legs it caught
-    if (tangled) b.irk += IRK_TANGLED * dt;
+    if (bodyBy && (b.bodyFree ?? Infinity) > RETOUCH) fresh ??= bodyBy;
+    else if (bodyBy) tangled ??= bodyBy;
+    b.bodyFree = bodyBy ? 0 : (b.bodyFree ?? Infinity) + dt;
     const o = fresh ?? tangled;
     if (!o) continue;
+    const calm = sameColony(b, o) ? COLONY_CALM : 1;
+    if (fresh) b.irk += IRK_TOUCH * calm;   // once per touch, however many legs it caught
+    if (tangled) b.irk += IRK_TANGLED * calm * dt;
     const c = startleCandidate(b, o);
     if (b.irk > IRK_LIMIT) {
       startle(c, c === b ? o : b, GIVE_WAY_ALARM);
       b.irk = 0;
       o.irk = 0;
-    } else if (fresh && c === b && b.rng() < STARTLE_CHANCE) startle(b, o);
+    } else if (fresh && c === b && b.rng() < startleChance(b, o)) startle(b, o);
   }
+}
+
+// Whether a leg (hip, knee, ankle, foot) presses on a body given as discs: any part of it beyond the hip within
+// `gap` of a disc.
+function legOnBody(leg, discs, gap) {
+  for (let i = 0; i < 3; i++) {
+    for (const d of discs) if (segmentGap(leg[i], leg[i + 1], { x: d.x, y: d.y }, { x: d.x, y: d.y }) < d.r + gap) return true;
+  }
+  return false;
 }
 
 // Whether two legs (each hip, knee, ankle, foot) come within `gap` of each other anywhere along them.
