@@ -283,7 +283,7 @@ test('running lengthens the stride and puts feet down for less of it, so legs sp
   assert.ok(Math.abs(b.run - 1) < 1e-3, 'back to its walking stride when it slows');
 });
 
-test('spiders keep their distance from each other (legs at most touching), but not from other bugs', async () => {
+test('spiders keep their distance from each other (legs at most touching), and other bugs from them', async () => {
   const { keepApart } = await import('../src/lib/bugs/engine.js');
   const closest = ids => {
     const bugs = ids.map((id, i) => {
@@ -304,7 +304,7 @@ test('spiders keep their distance from each other (legs at most touching), but n
   assert.ok(spiders.room > 0);
   assert.ok(spiders.min > spiders.room * 0.7, `two spiders meeting head on came within ${spiders.min.toFixed(0)} px (room ${spiders.room.toFixed(0)})`);
   const mixed = closest(['spider', 'cockroach']);
-  assert.equal(mixed.room, 0, 'other bugs only need their bodies clear');
+  assert.ok(mixed.room > 0 && mixed.room < spiders.room, 'other bugs keep clear of a spider\'s legs too, with less room than two spiders need');
 });
 
 test('a planted 3D foot sticks to the page while steering changes how the stride bends', () => {
@@ -322,6 +322,15 @@ test('a planted 3D foot sticks to the page while steering changes how the stride
     assert.ok(Math.hypot(now.x - start.x, now.y - start.y) < 1e-6, `planted foot moved at step ${i}`);
   }
   assert.ok(bug.feet[0].planted);
+});
+
+test('a settings-page specimen walks in place, so its feet slide back under it instead of sticking to the page', async () => {
+  const { createPreviewBug } = await import('../src/lib/bugs/preview.js');
+  const b = createPreviewBug('housefly');
+  assert.equal(b.inPlace, true);
+  const target = { x: 10, y: 20, lift: 0 };
+  Object.assign(b, { x: 50, y: 50, heading: 0 });
+  assert.equal(gaitLib.stickyFoot(b, 0, target, 5), target, 'the gait places its feet, untouched');
 });
 
 test('a lifted leg casts no shadow at the top of its swing', () => {
@@ -622,6 +631,17 @@ test('a leg pressing on another bug\'s body counts as a touch: the leg flinches 
   assert.equal(pede.bodyFree, Infinity, 'nothing touching yet');
 });
 
+test('long legs get room from every bug: others keep clear of a crane fly, but a hunter still closes on its prey', async () => {
+  const { roomBetween } = await import('../src/lib/bugs/engine.js');
+  const make = id => createBug(id, { width: 800, height: 600, rng: seeded(2) });
+  const crane = make('cranefly'), ant = make('ant'), ant2 = make('fieldant'), spider = make('spider'), fly = make('housefly');
+  assert.ok(roomBetween(crane, ant) > crane.size, 'an ant keeps well clear of a crane fly\'s legs');
+  assert.equal(roomBetween(ant, ant2), 0, 'short-legged bugs only keep their bodies apart');
+  assert.ok(roomBetween(spider, fly) > 0);
+  spider.hunt = { prey: fly };
+  assert.equal(roomBetween(spider, fly), 0, 'a spider stalking a fly may close in');
+});
+
 test('a planted foot stays put on the ground while the body walks over it', async () => {
   const { advanceGait } = await import('../src/lib/bugs/engine.js');
   const b = createBug('beetle', { width: 800, height: 600, rng: seeded(12) });
@@ -832,13 +852,54 @@ test('ants meeting head on stop face to face, wiggle antennae, then go their way
   assert.ok(p.meetCooldown > 0 || p.x > 700, 'no immediate re-greeting');
 });
 
-test('housefly has been removed and old saved settings that pick it are cleaned up', async () => {
-  assert.equal(SPECIES.housefly, undefined);
-  assert.ok(!BUG_SPECIES.some(s => s.id === 'housefly'));
+test('flies: twelve kinds in their own group, the house fly among them at a female\'s size', async () => {
+  const { FLY_BREEDS, FLY_IDS, flyPlan } = await import('../src/lib/bugs/species/flies.js');
+  const { REAL_LENGTH_MM } = await import('../src/lib/bugs/lifesize.js');
+  assert.equal(FLY_IDS.length, 12);
+  for (const id of FLY_IDS) assert.equal(BUG_SPECIES.find(s => s.id === id)?.group, 'Flies', id);
+  assert.ok(FLY_IDS.includes('housefly'), 'the house fly keeps its id, so saved settings carry over');
   const { validate } = await import('../src/lib/settings.js');
-  const v = validate({ bugs: { species: ['housefly', 'ant'], weights: { housefly: 9, ant: 3 } } });
-  assert.deepEqual(v.bugs.species, ['ant']);
-  assert.equal(v.bugs.weights.housefly, undefined);
+  assert.deepEqual(validate({ bugs: { species: ['housefly', 'ant'] } }).bugs.species, ['housefly', 'ant']);
+  const [lo, hi] = REAL_LENGTH_MM.housefly;
+  assert.ok(lo < 7 && hi > 7, 'a female house fly, about 7 mm');
+  // Varied in look: no two kinds share the same proportions, colours, markings and wing pose.
+  const looks = new Set(FLY_BREEDS.map(b => JSON.stringify([b.head, b.thorax, b.abdomen, b.abdomenColors, b.abdomenMark, b.wing.spread, b.wing.pattern])));
+  assert.equal(looks.size, 12);
+  for (const b of FLY_BREEDS) assert.ok(flyPlan(b).length > 40, `${b.id} has a body`);
+});
+
+test('fly legs are posed in 3D like a spider\'s: knees flex through a stride but never fold shut or lock straight', async () => {
+  const { FLY_IDS } = await import('../src/lib/bugs/species/flies.js');
+  const { recorder } = await import('./helpers/legaudit.js');
+  const ang = (p, a, c) => {
+    const u = [a.x - p.x, a.y - p.y, a.z - p.z], v = [c.x - p.x, c.y - p.y, c.z - p.z];
+    return Math.acos((u[0] * v[0] + u[1] * v[1] + u[2] * v[2]) / Math.hypot(...u) / Math.hypot(...v)) * 180 / Math.PI;
+  };
+  for (const id of FLY_IDS) {
+    const b = createBug(id, { width: 800, height: 600, rng: seeded(5) });
+    Object.assign(b, { x: NaN, heading: 0, size: 100, stridePx: (b.stridePx * 100) / b.size, light: { x: -0.45, y: -0.65 }, moving: 1 });
+    let lo = 180, hi = 0;
+    for (let k = 0; k < 96; k++) {
+      b.phaseL = b.phaseR = (k / 96) * 2 * Math.PI;
+      SPECIES[id].draw(recorder().ctx, b);
+      assert.equal(b.legPoses.length, 6);
+      for (const p of b.legPoses) { assert.ok(p.knee.z > p.hip.z, `${id}: knee above the hip`); const a = ang(p.knee, p.hip, p.ankle); lo = Math.min(lo, a); hi = Math.max(hi, a); }
+    }
+    assert.ok(lo > 30 && hi < 162, `${id}: knee ranges ${lo.toFixed(0)}-${hi.toFixed(0)} deg`);
+  }
+});
+
+test('flies are prey to spiders, centipedes and yellowjackets; robber flies hunt other flies and bees', async () => {
+  const { danger } = await import('../src/lib/bugs/ecology.js');
+  const { FLY_IDS } = await import('../src/lib/bugs/species/flies.js');
+  const as = id => ({ species: SPECIES[id] });
+  for (const fly of FLY_IDS) {
+    for (const hunter of ['spider', 'crabspider', 'housecentipede', 'centipede', 'yellowjacket']) assert.ok(danger(as(hunter), as(fly)) > 0, `${hunter} hunts ${fly}`);
+    if (fly !== 'robberfly') assert.ok(danger(as('robberfly'), as(fly)) > 0, `robber flies hunt ${fly}`);
+  }
+  assert.equal(danger(as('robberfly'), as('robberfly')), 0, 'not each other');
+  assert.ok(danger(as('robberfly'), as('italianbee')) > 0 && danger(as('robberfly'), as('easternbumblebee')) > 0);
+  assert.ok(SPECIES.housefly.nerves > 1, 'house flies take fright sooner than most');
 });
 
 test('only ants greet each other; other bugs just give way', () => {

@@ -7,6 +7,7 @@ import silverfish from './species/silverfish.js';
 import beetle from './species/beetle.js';
 import earwig from './species/earwig.js';
 import yellowjacket from './species/yellowjacket.js';
+import { FLIES } from './species/flies.js';
 import stinkbug from './species/stinkbug.js';
 import bedbug from './species/bedbug.js';
 import housecentipede from './species/housecentipede.js';
@@ -17,7 +18,7 @@ import { sampleTrail } from './species/centipede.js';
 import { danger, REPELLENT, LOOM } from './ecology.js';
 import { lifeScale } from './lifesize.js';
 
-export const SPECIES = Object.fromEntries([...ANTS, cockroach, centipede, ...SPIDERS, silverfish, beetle, earwig, yellowjacket, stinkbug, bedbug, housecentipede, ...BEES, ...BUMBLES, ...FIREFLIES].map(s => [s.id, s]));
+export const SPECIES = Object.fromEntries([...ANTS, cockroach, centipede, ...SPIDERS, silverfish, beetle, earwig, yellowjacket, stinkbug, bedbug, housecentipede, ...BEES, ...BUMBLES, ...FIREFLIES, ...FLIES].map(s => [s.id, s]));
 
 const MAX_LIFETIME_S = 45;
 const NEVER_ENTERED_S = 12;
@@ -487,9 +488,14 @@ export function bodyDiscs(b, heading = b.heading, x = b.x, y = b.y) {
 // other room so their legs no more than touch. 0 when either doesn't care. On screen it is kept by steering
 // (avoidance) and by not stepping closer (keepRoom), never as a solid wall, so nobody is trapped; a spider
 // still off screen instead waits to come on until it has room (see waitForRoom).
+// A bug with long legs keeps room around them from anyone (others count their body's half-width); a hunter may
+// still close in on its prey.
+const BODY_ROOM = 0.25;
 export function roomBetween(b, o) {
   const rb = b.species.keepApart, ro = o.species.keepApart;
-  return rb && ro ? rb * b.size + ro * o.size : 0;
+  if (!rb && !ro) return 0;
+  if (b.hunt?.prey === o || o.hunt?.prey === b) return 0;
+  return (rb ?? BODY_ROOM) * b.size + (ro ?? BODY_ROOM) * o.size;
 }
 export const keepApart = (b, o) => (b.entered && o.entered ? roomBetween(b, o) : 0);
 
@@ -678,18 +684,23 @@ export function checkStuck(b, hood, moved, dt) {
   b.slow = 0;
 }
 
-// The gentle drift of a bug buzzing loose: a sideways shuffle (never backwards) to whichever side is away from
-// the bug it was stuck to, as long as that doesn't push it into anyone else.
+// The gentle drift of a bug buzzing loose: a sideways shuffle to whichever side is away from the bug it was stuck
+// to, as long as that doesn't push it into anyone else. Wedged in with that side blocked too, it tries the other
+// side, then backing out, then edging forward, so a bug caught between two others still works its way free.
 function buzzLoose(b, hood, dt) {
   if (b.trail) return;   // a centipede's body follows its head's path: it just turns away and walks off
   const o = b.loosen.from;
   const px = -Math.sin(b.heading), py = Math.cos(b.heading);                 // its right-hand side
+  const fx = Math.cos(b.heading), fy = Math.sin(b.heading);
   const side = (b.x - o.x) * px + (b.y - o.y) * py < 0 ? -1 : 1;            // away from the other bug (right if head on)
-  const step = b.size * LOOSEN_DRIFT * dt, ux = px * side, uy = py * side;
-  const others = hood.filter(n => n !== o);
-  if (overlapDepth(b, others, b.heading, b.x + ux * step, b.y + uy * step) <= overlapDepth(b, others, b.heading) + 1e-9) {
-    b.x += ux * step;
-    b.y += uy * step;
+  const step = b.size * LOOSEN_DRIFT * dt;
+  const now = overlapDepth(b, hood, b.heading);
+  for (const [ux, uy] of [[px * side, py * side], [-px * side, -py * side], [-fx, -fy], [fx, fy]]) {
+    if (overlapDepth(b, hood, b.heading, b.x + ux * step, b.y + uy * step) <= now + 1e-9) {
+      b.x += ux * step;
+      b.y += uy * step;
+      return;
+    }
   }
 }
 

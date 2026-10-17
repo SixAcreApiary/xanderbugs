@@ -9,6 +9,7 @@ export const PREVIEW_PACE = 0.2;    // fraction of the species' slowest natural 
 export function createPreviewBug(id) {
   const bug = createBug(id, { width: 160, height: 118, speed: 1 });
   bug.cruise = bug.species.speed[0] * PREVIEW_PACE;
+  bug.inPlace = true;   // it strolls on the spot, so its feet slide back under it rather than stick to the page
   return bug;
 }
 

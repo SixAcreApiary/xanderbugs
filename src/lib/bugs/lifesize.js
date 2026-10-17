@@ -2,6 +2,7 @@ import { ANT_IDS } from './species/ant.js';
 import { BEE_IDS } from './species/honeybee.js';
 import { BUMBLE_IDS } from './species/bumblebee.js';
 import { FIREFLY_IDS } from './species/firefly.js';
+import { FLY_BREEDS, flyPlan } from './species/flies.js';
 import { SPIDER_BREEDS, bodyPlan } from './species/spider.js';
 
 // "Life size": with a calibrated screen (pixels per millimetre), every bug is drawn at its real body length.
@@ -19,6 +20,7 @@ export const REAL_LENGTH_MM = {
   ...Object.fromEntries(SPIDER_BREEDS.map(b => [b.id, adult(b.mm)])),   // spiders: body only, legs not counted
   silverfish: adult(15), beetle: adult(15), earwig: adult(14), yellowjacket: adult(13.5), stinkbug: adult(15.5), bedbug: adult(5),
   housecentipede: adult(30),    // body only; its legs are far longer
+  ...Object.fromEntries(FLY_BREEDS.map(b => [b.id, adult(b.mm)])),   // flies: typical adults, the house fly a female
   ...range(BEE_IDS, adult(13.5)), // workers; drones and queens keep their real proportions to workers
   ...range(BUMBLE_IDS, adult(15)),
   bigdipperfirefly: adult(12), treetopfirefly: adult(17), southwestsyncfirefly: adult(6.5), loopyfivefirefly: adult(11.5), smokiessyncfirefly: adult(13)
@@ -27,7 +29,8 @@ export const DRAWN_LENGTH = {
   ...range(ANT_IDS, 94), cockroach: 101, centipede: 106.5, silverfish: 102, beetle: 102, earwig: 106.5,
   yellowjacket: 93.5, stinkbug: 93, bedbug: 89, housecentipede: 96.5, ...range(BEE_IDS, 79), ...range(BUMBLE_IDS, 82),
   ...range(FIREFLY_IDS, 80.5),
-  ...Object.fromEntries(SPIDER_BREEDS.map(b => { const p = bodyPlan(b); return [b.id, p.front - p.back]; }))
+  ...Object.fromEntries(SPIDER_BREEDS.map(b => { const p = bodyPlan(b); return [b.id, p.front - p.back]; })),
+  ...Object.fromEntries(FLY_BREEDS.map(b => [b.id, flyPlan(b).length]))
 };
 
 // How much to scale a bug (size, pace and stride) so it comes out at life size at pxPerMm CSS pixels per mm. A bug

@@ -411,9 +411,10 @@ export function legPose3D(hip, hz, foot, fz, [a, b, c], curl = 0, side = 1) {
 // walking steadily, but steering keeps changing how the stride bends (turnMix), and in a crowd that dragged
 // planted feet about. So once a foot touches down its spot on the page is kept until it lifts (never further
 // than `limit` from where the gait wants it), and the next swing blends from where it really was to where the
-// gait wants it to land. State lives on bug.feet[key]; without a key or a placed bug it is just the gait's.
+// gait wants it to land. State lives on bug.feet[key]; without a key or a placed bug, or for a bug walking in place
+// (bug.inPlace, a settings-page specimen, whose body never moves over its feet), it is just the gait's.
 export function stickyFoot(bug, key, target, limit) {
-  if (key == null || !Number.isFinite(bug.x) || !Number.isFinite(bug.heading)) return target;
+  if (key == null || bug.inPlace || !Number.isFinite(bug.x) || !Number.isFinite(bug.heading)) return target;
   const k = bug.size / 100, c = Math.cos(bug.heading), sn = Math.sin(bug.heading);
   const toWorld = p => ({ x: bug.x + (p.x * c - p.y * sn) * k, y: bug.y + (p.x * sn + p.y * c) * k });
   const toLocal = w => {
