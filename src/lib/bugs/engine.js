@@ -203,6 +203,9 @@ export function createBug(speciesId, { width, height, rng = Math.random, delay =
 // Above natural pace the stride grows as speed^STRIDE_GROWTH, so leg cadence rises only gently.
 const STRIDE_BASE = 1.25;
 const STRIDE_GROWTH = 0.65;
+const TURN_EASE = 10;              // 1/s: how quickly the turn rate follows steering (~0.1 s)
+const RUN_STRIDE_MAX = 2;          // the most a burst of speed lengthens the stride
+const RUN_STRIDE_GROWTH = 0.9;     // in a burst nearly all the extra speed comes from longer strides
 
 export function strideLength(b) {
   const caste = b.caste ? b.size / ((b.scale ?? 1) * b.species.size[0]) : 1;   // a drone or queen steps in proportion to her bigger body
@@ -215,7 +218,11 @@ export function advanceGait(b, dist, turn, dt = 0) {
   // swinging feet step rearward. Reversed, a clockwise turn plays as an anticlockwise one, hence dir on rot.
   const dir = dist < 0 ? -1 : 1, fwd = Math.abs(dist);
   const rot = turn * dir * b.size * TURN_RADIUS;
-  const k = TAU / strideLength(b);
+  // Running (darting, fleeing, lunging) lengthens the stride too, eased so planted feet aren't jerked.
+  const run = Math.min(RUN_STRIDE_MAX, Math.max(1, Math.abs(b.speed ?? 0) / Math.max(1, b.cruise ?? 1)) ** RUN_STRIDE_GROWTH);
+  b.run = (b.run ?? 1) + (run - (b.run ?? 1)) * Math.min(1, dt * 4);
+  b.stridePx = strideLength(b) * b.run;
+  const k = TAU / b.stridePx;
   b.phaseL = (b.phaseL + dir * sideDrive(fwd, rot, -1) * k) % WRAP;   // +turn = clockwise on screen: left side is outer
   b.phaseR = (b.phaseR + dir * sideDrive(fwd, rot, 1) * k) % WRAP;
   b.phase = (b.phase + (fwd + Math.abs(rot)) * k) % WRAP;
@@ -247,6 +254,7 @@ export function stepBug(b, dt, width, height, others = [], pointer = null) {
     if ((b.delay -= dt) <= 0 && overlapDepth(b, neighbours(b, others), b.heading) > 0) b.delay = 0.25;
     return;
   }
+  if (waitForRoom(b, others)) { b.delay = 0.25; b.speed = 0; return; }
   const sp = b.species;
   const rng = b.rng;
   const x0 = b.x, y0 = b.y;
@@ -402,7 +410,12 @@ export function stepBug(b, dt, width, height, others = [], pointer = null) {
   // A startled bug spins round to run, whatever it was doing.
   if (b.alarm > 0.15 && !sp.trail) maxTurn = Math.max(maxTurn, turnRate * dt * b.alarm);
   if (b.dance || b.duel || b.loosen) maxTurn = Math.max(maxTurn, turnRate * dt);   // the dance's tight loops; squaring up to a rival
-  let turn = Math.max(-maxTurn, Math.min(maxTurn, diff));
+  // Bodies have some inertia: the turn rate eases toward what steering asks rather than flicking to it, or a
+  // crowd's push and pull would twitch a bug left and right from frame to frame. A startled bug spins faster.
+  const asked = Math.max(-maxTurn, Math.min(maxTurn, diff));
+  b.spin = (b.spin ?? 0) + (asked / Math.max(dt, 1e-6) - (b.spin ?? 0)) * Math.min(1, dt * (b.alarm > 0.15 ? TURN_EASE * 3 : TURN_EASE));
+  let turn = Math.max(-maxTurn, Math.min(maxTurn, b.spin * dt));
+  if (turn * diff > 0 && Math.abs(turn) > Math.abs(diff)) turn = diff;   // don't swing past the heading it wants
   if (turn && hood.length) {   // don't swing into a neighbour, or any deeper into one already touching
     // A worker tending her queen may turn her head to touch the queen, but no more than touch.
     const q = b.attend?.queen, near = q ? hood.filter(o => o !== q) : hood;
@@ -412,6 +425,7 @@ export function stepBug(b, dt, width, height, others = [], pointer = null) {
       if (next > Math.max(now, b.size * 0.05)) turn = 0;
     }
   }
+  if (Math.abs(turn) < Math.abs(b.spin * dt)) b.spin = turn / Math.max(dt, 1e-6);   // held back: the spin goes too
   b.heading = wrapAngle(b.heading + turn);
 
   b.x += Math.cos(b.heading) * dist;
@@ -469,9 +483,26 @@ export function bodyDiscs(b, heading = b.heading, x = b.x, y = b.y) {
   return along.map(o => ({ x: x + hx * o * b.size, y: y + hy * o * b.size, r }));
 }
 
+// How far apart (px, centre to centre) two bugs that both keep a personal space like to stay: spiders give each
+// other room so their legs no more than touch. 0 when either doesn't care. On screen it is kept by steering
+// (avoidance) and by not stepping closer (keepRoom), never as a solid wall, so nobody is trapped; a spider
+// still off screen instead waits to come on until it has room (see waitForRoom).
+export function roomBetween(b, o) {
+  const rb = b.species.keepApart, ro = o.species.keepApart;
+  return rb && ro ? rb * b.size + ro * o.size : 0;
+}
+export const keepApart = (b, o) => (b.entered && o.entered ? roomBetween(b, o) : 0);
+
+// A spider that hasn't come on screen yet holds back while one already on screen is within its room, so
+// spiders don't arrive tangled together (and, held back, it doesn't give up on ever entering).
+function waitForRoom(b, others) {
+  if (b.entered || !b.species.keepApart) return false;
+  return others.some(o => o !== b && !o.done && o.entered && Math.hypot(o.x - b.x, o.y - b.y) < roomBetween(b, o) * KEEP_FLOOR);
+}
+
 // Bugs keep their bodies apart off screen too, so two arriving from the same spot don't enter tangled.
 export const neighbours = (b, others) => others.filter(o => o !== b && !o.done && o.delay <= 0 &&
-  Math.hypot(o.x - b.x, o.y - b.y) < (b.size + o.size) * 1.2);
+  Math.hypot(o.x - b.x, o.y - b.y) < Math.max((b.size + o.size) * 1.2, keepApart(b, o) * 1.5));
 
 // How deeply a bug's body would cut into its neighbours' in a given pose (0 = clear). Each neighbour is
 // padded by how far it may move this frame, so two bugs can't both step into the same gap at once.
@@ -485,11 +516,30 @@ export function overlapDepth(b, hood, heading, x = b.x, y = b.y, dt = 0) {
   return depth;
 }
 
+// Personal space is mostly kept by steering, which lets spiders squeeze past each other when they must. Only
+// well inside it (KEEP_FLOOR of the room, where legs would be deeply interleaved) may a step not bring the two
+// any closer; it may always take them apart, and turning is never held back, so nobody is trapped.
+export const KEEP_FLOOR = 0.7;
+export function keepRoom(b, hood, dist) {
+  if (b.alarm > 0.15) return dist;   // a frightened spider bolts, manners or not (bodies still can't overlap)
+  const hx = Math.cos(b.heading), hy = Math.sin(b.heading);
+  const ok = step => hood.every(o => {
+    const floor = keepApart(b, o) * KEEP_FLOOR;
+    if (!floor) return true;
+    const now = Math.hypot(o.x - b.x, o.y - b.y), next = Math.hypot(o.x - b.x - hx * step, o.y - b.y - hy * step);
+    return next >= Math.min(now, floor) - 1e-9;
+  });
+  for (const f of [1, 0.6, 0.3, 0.1]) if (ok(dist * f)) return dist * f;
+  return 0;
+}
+
 // How far a bug may move along its heading this frame (negative when backing). Bugs never walk over each
 // other: a step is cut short if it would push further into a neighbour's body, while a bug that has somehow
 // ended up overlapping may always move or turn to ease out of it, so nobody gets locked together.
 export function clearance(b, hood, dist, dt = 0) {
   if (!dist || !hood.length) return dist;
+  dist = keepRoom(b, hood, dist);
+  if (!dist) return 0;
   const now = overlapDepth(b, hood, b.heading, b.x, b.y, dt);
   const hx = Math.cos(b.heading), hy = Math.sin(b.heading);
   // Actually tangled (bodies touching, not just a fast neighbour's padding): a step away from everyone it
@@ -515,19 +565,22 @@ export function avoidance(b, others) {
     if (o === b.follow?.leader || o === b.hunt?.prey || o === b.duel?.rival || o === b.attend?.queen) continue;   // not an obstacle: it's after them
     const dx = o.x - b.x, dy = o.y - b.y;
     const d = Math.hypot(dx, dy) || 0.01;
-    const range = (b.size + o.size) * 0.5 * AVOID_RANGE * (1 + (REPELLENT[o.species.id] ?? 0)) +
+    const range = Math.max((b.size + o.size) * 0.5 * AVOID_RANGE, keepApart(b, o) * 1.2) * (1 + (REPELLENT[o.species.id] ?? 0)) +
       (Math.abs(b.speed) + Math.abs(o.speed)) * AVOID_LOOKAHEAD_S;
     if (d > range) continue;
     const ahead = (dx * hx + dy * hy) / d;
     // Only what's in front matters much: a bug beside it counts a little and one behind not at all. (Steering
     // away from bugs alongside or behind let two bugs keep pushing each other round in circles.)
-    const w = (1 - d / range) * Math.max(0, 0.3 + ahead);
+    // Inside another's personal space, though, it backs off whichever way the other is.
+    const room = keepApart(b, o), crowd = room && d < room ? 1 - d / room : 0;
+    const w = Math.max((1 - d / range) * Math.max(0, 0.3 + ahead), crowd);
     if (!w) continue;
     // Push away, and for a bug ahead also slightly sideways, so two meeting head on pass on opposite sides.
     const side = (dx * hy - dy * hx) >= 0 ? 1 : -1, slip = ahead > 0 ? 0.8 : 0;
     x -= (dx / d) * w + side * hy * w * slip;
     y -= (dy / d) * w - side * hx * w * slip;
     if (ahead > 0.6) blocked = Math.max(blocked, 1 - d / range);
+    if (ahead > 0.2 && crowd) blocked = Math.max(blocked, Math.min(1, crowd * 2));
   }
   return x || y ? { x: x * 1.6, y: y * 1.6, blocked } : null;
 }
@@ -913,6 +966,100 @@ export function ensureQueen(swarm, species, weights, rng, crowd, speed = 1) {
 }
 
 // Bugs from every swarm on the page share one crowd so they avoid each other too.
+// Legs that brush another's flinch: the touched leg is drawn back a little and lifted (see walkLeg3D's recoil),
+// easing in over a few frames and fading in about a third of a second once free. A leg left touching (or that
+// brushes the same legs again as it steps) stays mildly drawn back rather than flinching over and over; it only
+// flinches afresh at a touch after a second or so clear. Uses the leg
+// poses each bug last drew (bug.legPoses, in its own frame); bug.recoil[i] is the flinch of leg i (0..1).
+const RECOIL_FADE = 0.35;   // s
+const RECOIL_EASE = 15;     // 1/s
+const RECOIL_HOLD = 0.5;    // how far a leg left touching stays drawn back
+const RETOUCH = 1;          // s: touching again sooner than this after contact is the same encounter, not a new flinch
+// Now and then a touch startles one of the pair into a short dash away: the smaller of the two, or between
+// two of a size, the one that was walked into (the slower). Touches also wear on a spider's patience: each new
+// one, and every moment legs stay tangled, adds irritation (fading at IRK_FADE); when it boils over the same
+// candidate gives way with a dash, so a knot of spiders breaks up instead of standing there twitching.
+const STARTLE_CHANCE = 0.06;  // per fresh touch
+const STARTLE_ALARM = 0.55;   // alarm it starts with (fades at ALARM_DECAY, so about two thirds of a second of flight)
+const GIVE_WAY_ALARM = 0.9;   // giving way after a tangle is a proper retreat: over a second, to get its legs clear
+const IRK_TOUCH = 1, IRK_TANGLED = 2, IRK_FADE = 0.5, IRK_LIMIT = 3;   // per touch, per s tangled, per s, threshold
+export function startleCandidate(b, o) {
+  if (Math.abs(b.size - o.size) > Math.max(b.size, o.size) * 0.05) return b.size < o.size ? b : o;
+  return Math.abs(b.speed) <= Math.abs(o.speed) ? b : o;
+}
+
+function startle(b, from, alarm = STARTLE_ALARM) {
+  if (b.alarm >= 0.15) return;
+  b.alarm = alarm;
+  b.fleeDir = Math.atan2(b.y - from.y, b.x - from.x);
+  b.sprint = 0;
+}
+
+export function touchLegs(bugs, others, dt) {
+  const world = b => {
+    if (!b.legPoses || b.done || b.delay > 0) return null;
+    const k = b.size / 100, c = Math.cos(b.heading), s = Math.sin(b.heading);
+    const at = p => ({ x: b.x + (p.x * c - p.y * s) * k, y: b.y + (p.x * s + p.y * c) * k });
+    const legs = b.legPoses.map(p => [at(p.hip), at(p.knee), at(p.ankle), at(p.foot)]);
+    const reach = Math.max(...legs.flat().map(p => Math.hypot(p.x - b.x, p.y - b.y)));
+    return { legs, reach };
+  };
+  const cache = new Map(), get = b => (cache.has(b) ? cache.get(b) : cache.set(b, world(b)).get(b));
+  for (const b of bugs) {
+    const me = get(b);
+    if (!me) continue;
+    const hits = (b.recoilHit ??= []), flinch = (b.recoil ??= []), free = (b.legFree ??= []);   // free: s since leg i last touched
+    const by = me.legs.map(() => null);
+    for (const o of others) {
+      if (o === b) continue;
+      const them = get(o);
+      if (!them || Math.hypot(o.x - b.x, o.y - b.y) > me.reach + them.reach) continue;
+      const touch = (b.size + o.size) * 0.012;
+      me.legs.forEach((leg, i) => { if (!by[i] && them.legs.some(other => legsCross(leg, other, touch))) by[i] = o; });
+    }
+    b.irk = Math.max(0, (b.irk ?? 0) - IRK_FADE * dt);
+    let fresh = null, tangled = null;
+    me.legs.forEach((leg, i) => {
+      hits[i] = Math.max(0, (hits[i] ?? 0) - dt / RECOIL_FADE);
+      if (by[i] && (free[i] ?? Infinity) > RETOUCH) { hits[i] = 1; fresh ??= by[i]; }
+      else if (by[i]) { hits[i] = Math.max(hits[i], RECOIL_HOLD); tangled ??= by[i]; }
+      free[i] = by[i] ? 0 : (free[i] ?? Infinity) + dt;
+      flinch[i] = (flinch[i] ?? 0) + (hits[i] - (flinch[i] ?? 0)) * Math.min(1, dt * RECOIL_EASE);
+    });
+    if (fresh) b.irk += IRK_TOUCH;   // once per touch, however many legs it caught
+    if (tangled) b.irk += IRK_TANGLED * dt;
+    const o = fresh ?? tangled;
+    if (!o) continue;
+    const c = startleCandidate(b, o);
+    if (b.irk > IRK_LIMIT) {
+      startle(c, c === b ? o : b, GIVE_WAY_ALARM);
+      b.irk = 0;
+      o.irk = 0;
+    } else if (fresh && c === b && b.rng() < STARTLE_CHANCE) startle(b, o);
+  }
+}
+
+// Whether two legs (each hip, knee, ankle, foot) come within `gap` of each other anywhere along them.
+function legsCross(a, b, gap) {
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) if (segmentGap(a[i], a[i + 1], b[j], b[j + 1]) < gap) return true;
+  return false;
+}
+
+function segmentGap(p, q, r, s) {
+  const d1x = q.x - p.x, d1y = q.y - p.y, d2x = s.x - r.x, d2y = s.y - r.y;
+  const den = d1x * d2y - d1y * d2x;
+  if (den) {
+    const t = ((r.x - p.x) * d2y - (r.y - p.y) * d2x) / den, u = ((r.x - p.x) * d1y - (r.y - p.y) * d1x) / den;
+    if (t >= 0 && t <= 1 && u >= 0 && u <= 1) return 0;
+  }
+  const toSeg = (pt, a, b) => {
+    const dx = b.x - a.x, dy = b.y - a.y, l = dx * dx + dy * dy;
+    const t = l ? Math.max(0, Math.min(1, ((pt.x - a.x) * dx + (pt.y - a.y) * dy) / l)) : 0;
+    return Math.hypot(pt.x - a.x - dx * t, pt.y - a.y - dy * t);
+  };
+  return Math.min(toSeg(p, r, s), toSeg(q, r, s), toSeg(r, p, q), toSeg(s, p, q));
+}
+
 export class Swarm {
   // lifePxPerMm (CSS pixels per mm on a calibrated screen) draws every bug at its real size.
   constructor({ species, count, width, height, speed = 1, weights, rng = Math.random, crowd = new Set(), lifePxPerMm = 0 }) {
@@ -949,6 +1096,7 @@ export class Swarm {
     const others = [];
     for (const s of this.crowd) others.push(...s.bugs);
     for (const b of this.bugs) stepBug(b, step, this.width, this.height, others, this.pointer);
+    touchLegs(this.bugs, others, step);
     if (this.done) this.crowd.delete(this);
   }
 

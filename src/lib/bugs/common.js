@@ -160,9 +160,10 @@ export function restFoot(hx, hy, side, angle, segs) {
   return { x, y };
 }
 
-// Duty factor: share of the cycle each foot is on the ground. ~0.5 at natural pace, more when slow.
+// Duty factor: share of the cycle each foot is on the ground. ~0.5 at natural pace, more when slow, less
+// while running (bug.run: how far a burst of speed has lengthened the stride).
 export function dutyFactor(bug, base = 0.5) {
-  return Math.min(0.72, Math.max(0.42, base + (1 - (bug.speedScale ?? 1)) * 0.2));
+  return Math.min(0.72, Math.max(0.42, base + (1 - (bug.speedScale ?? 1)) * 0.2 - ((bug.run ?? 1) - 1) * 0.25));
 }
 
 // Insect leg timing. leg: 0 front, 1 middle, 2 hind. side: -1 left, +1 right.
@@ -208,9 +209,10 @@ export function strideDirection(bug, side, rest) {
 }
 
 // Where a walking foot is right now. Returns the foot point and how lifted it is (0 planted .. 1 apex).
-// With a hip given ({ x, y, bulge }), a swinging foot is carried round it (the leg pivots at the hip and keeps
-// its reach, stretching out by `bulge` of it mid-swing) rather than straight across, which would fold the leg
-// in towards the body; the leg's own lift is then left to the caller (see walkLeg3D).
+// With a hip given ({ x, y, fold, bulge }), a swinging foot is carried round it (the leg pivots at the hip)
+// rather than straight across. Through the swing the leg first folds, drawing the foot in by `fold` of its reach
+// as it lifts clear, then reaches out by `bulge` beyond it before setting down; the leg's own lift is left to the
+// caller (see walkLeg3D).
 export function footPosition(bug, side, rest, offset, duty, maxTravel, hip = null) {
   const dir = strideDirection(bug, side, rest);
   const travel = Math.min(maxTravel / Math.max(1, Math.hypot(dir.x, dir.y)), duty * (bug.stridePx ?? 0) * (100 / bug.size));
@@ -226,8 +228,10 @@ export function footPosition(bug, side, rest, offset, duty, maxTravel, hip = nul
       const a = groundPoint(bug, side, rest, -0.5 * travel), b = groundPoint(bug, side, rest, 0.5 * travel);
       const t = u + 0.5, p = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
       const ra = Math.hypot(a.x - hip.x, a.y - hip.y), rb = Math.hypot(b.x - hip.x, b.y - hip.y);
-      const r = (ra + (rb - ra) * t) * (1 + (hip.bulge ?? 0) * lift), d = Math.hypot(p.x - hip.x, p.y - hip.y) || 1;
-      return { x: hip.x + (p.x - hip.x) * r / d, y: hip.y + (p.y - hip.y) * r / d, lift };
+      const wave = Math.sin(2 * Math.PI * s);
+      const r = (ra + (rb - ra) * t) * (1 - (hip.fold ?? 0) * Math.max(0, wave) + (hip.bulge ?? 0) * Math.max(0, -wave));
+      const d = Math.hypot(p.x - hip.x, p.y - hip.y) || 1;
+      return { x: hip.x + (p.x - hip.x) * r / d, y: hip.y + (p.y - hip.y) * r / d, lift, swing: s };
     }
   }
   const p = groundPoint(bug, side, rest, u * travel);
@@ -377,17 +381,61 @@ export function legPose3D(hip, hz, foot, fz, [a, b, c], curl = 0, side = 1) {
   return { hip: at(0, hz), knee: at(Math.cos(up) * a, hz + Math.sin(up) * a, 0.9), ankle: at(ar, az, 0.35), foot: at(d, fz) };
 }
 
+// Planted feet stick to the page. footPosition places a foot from the stride phase alone, which is exact while
+// walking steadily, but steering keeps changing how the stride bends (turnMix), and in a crowd that dragged
+// planted feet about. So once a foot touches down its spot on the page is kept until it lifts (never further
+// than `limit` from where the gait wants it), and the next swing blends from where it really was to where the
+// gait wants it to land. State lives on bug.feet[key]; without a key or a placed bug it is just the gait's.
+export function stickyFoot(bug, key, target, limit) {
+  if (key == null || !Number.isFinite(bug.x) || !Number.isFinite(bug.heading)) return target;
+  const k = bug.size / 100, c = Math.cos(bug.heading), sn = Math.sin(bug.heading);
+  const toWorld = p => ({ x: bug.x + (p.x * c - p.y * sn) * k, y: bug.y + (p.x * sn + p.y * c) * k });
+  const toLocal = w => {
+    const dx = (w.x - bug.x) / k, dy = (w.y - bug.y) / k;
+    return { x: dx * c + dy * sn, y: -dx * sn + dy * c };
+  };
+  const st = ((bug.feet ??= {})[key] ??= { planted: false, last: null, off: { x: 0, y: 0 }, s0: 0 });
+  let p;
+  if (!target.lift) {
+    if (!st.planted) { st.planted = true; st.world = toWorld(st.last ?? target); }
+    p = toLocal(st.world);
+    const dx = p.x - target.x, dy = p.y - target.y, d = Math.hypot(dx, dy);
+    if (d > limit) { p = { x: target.x + dx * limit / d, y: target.y + dy * limit / d }; st.world = toWorld(p); }
+  } else {
+    if (st.planted || !st.last) {
+      const from = st.last ?? target;
+      st.planted = false;
+      st.off = { x: from.x - target.x, y: from.y - target.y };
+      st.s0 = target.swing ?? 0;
+    }
+    // The leftover offset fades out over the rest of the swing, whichever way the stride is running.
+    const s = target.swing ?? 0, s0 = st.s0;
+    const w = s0 < 0.5 ? (1 - smooth(s)) / Math.max(1e-6, 1 - smooth(s0)) : smooth(s) / Math.max(1e-6, smooth(s0));
+    const f = Math.max(0, Math.min(1, w));
+    p = { x: target.x + st.off.x * f, y: target.y + st.off.y * f };
+  }
+  st.last = p;
+  return { x: p.x, y: p.y, lift: target.lift, swing: target.swing };
+}
+
 // One walking leg posed in 3D. The neutral pose (angle, segs) sets where the foot rests, as for walkLeg; the
-// leg itself is `arch` times longer than that reach, which is what lifts the knee. Returns the joints.
-export function walkLeg3D(bug, { hx, hy, side, angle, segs, offset, duty, edge = 0, reach = 0.6, hz = 6, lift = 0.12, arch = 1.3, bulge = 0.05, curl = 0 }) {
+// leg itself is `arch` times longer than that reach, which is what lifts the knee and lets the foot travel
+// further (reach) than a flat leg's. recoil (0..1) is a flinch from being touched: the foot is drawn back toward
+// the hip and lifted a little, without moving the spot it is planted on, so it settles back as the flinch fades.
+// Returns the joints.
+export const RECOIL_PULL = 0.1, RECOIL_LIFT = 0.05;
+export function walkLeg3D(bug, { hx, hy, side, angle, segs, offset, duty, edge = 0, reach = 1.25, hz = 6, lift = 0.12, arch = 1.45, fold = 0.14, bulge = 0.07, curl = 0, key = null, recoil = 0 }) {
   const pivot = legPivot(hy, side, segs, edge);
   const rest = pivot.stub ? restFoot(hx, pivot.py, side, angle, pivot.segs) : restFoot(hx, hy, side, angle, segs);
-  const hip = { x: hx, y: pivot.py, bulge };
+  const hip = { x: hx, y: pivot.py, fold, bulge };
   const span = Math.hypot(rest.x - hip.x, rest.y - hip.y);
   const lens = pivot.segs.map(([len]) => len);
   const k = (span * arch) / lens.reduce((s, l) => s + l, 0);
-  const foot = footPosition(bug, side, rest, offset, duty, span * reach, hip);
-  return Object.assign(legPose3D(hip, hz, foot, foot.lift * lift * span, lens.map(l => l * k), curl, side), { lift: foot.lift });
+  const foot = stickyFoot(bug, key, footPosition(bug, side, rest, offset, duty, span * reach, hip), span * 0.8);
+  const pull = 1 - RECOIL_PULL * recoil;
+  const shown = { x: hip.x + (foot.x - hip.x) * pull, y: hip.y + (foot.y - hip.y) * pull };
+  const up = Math.max(foot.lift * lift, recoil * RECOIL_LIFT) * span;
+  return Object.assign(legPose3D(hip, hz, shown, up, lens.map(l => l * k), curl, side), { lift: Math.max(foot.lift, recoil * RECOIL_LIFT / lift) });
 }
 
 // The page is seen from a little off overhead, so a joint above the hip shows shifted toward the light (which
@@ -413,9 +461,12 @@ export function drawLeg3D(ctx, light, pose, widths, color) {
   }
 }
 
-// The leg's soft shadow on the ground: each joint pushed away from the light in proportion to its height.
+// The leg's soft shadow on the ground: each joint pushed away from the light in proportion to its height. A
+// lifted leg's shadow fades out (it would otherwise read as a blurred double of the moving leg).
 export function legShadow(ctx, light, pose, width, alpha = 0.14) {
-  ctx.strokeStyle = `rgba(0,0,0,${alpha})`;
+  const a = alpha * (1 - (pose.lift ?? 0));
+  if (a < 0.005) return;
+  ctx.strokeStyle = `rgba(0,0,0,${a.toFixed(3)})`;
   ctx.lineWidth = width;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';

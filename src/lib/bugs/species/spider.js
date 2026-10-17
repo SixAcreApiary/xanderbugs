@@ -18,7 +18,7 @@ const BROWN = ['#8a7058', '#4a3828', '#18100a'];
 export const SPIDER_BREEDS = [
   // Pardosa-type wolf spider: brown, a pale stripe down the carapace, chevrons on the abdomen; a fast runner.
   { id: 'spider', label: 'Wolf spider', mm: 8, body: BROWN, legs: ['#5a4634', '#2a1e14'], carapace: 'stripe', stripe: 'rgba(220,190,140,0.55)', abdomen: 'chevrons', mark: 'rgba(20,12,6,0.65)',
-    speed: [130, 260], pace: { drift: 0.2, dartRate: 0.15, dart: [1.8, 0.5] }, pauseRate: 0.9 },
+    speed: [85, 170], stride: 1.35, arch: 1.5, pace: { drift: 0.2, dartRate: 0.2, dart: [1.9, 0.5] }, pauseRate: 0.9 },
   // Parasteatoda tepidariorum: small, a round mottled brown abdomen, thin banded legs.
   { id: 'housespider', label: 'American house spider', mm: 6, body: ['#a08868', '#6a5038', '#2a1c10'], legs: ['#c8a878', '#6a5038'], bands: '#4a3424',
     ceph: 0.8, abd: [1, 1.15], legLen: 1.1, legW: 0.7, abdomen: 'mottle', mark: 'rgba(40,24,12,0.6)', speed: [30, 60], pauseRate: 1.2 },
@@ -28,7 +28,7 @@ export const SPIDER_BREEDS = [
   // Phidippus audax: black and furry, white spots and a white band on the abdomen, huge front eyes, short stout legs,
   // iridescent green jaws; stalks and hops.
   { id: 'boldjumper', label: 'Bold jumping spider', mm: 12, body: ['#3a3836', '#141312', '#040404'], legs: ['#2a2826', '#0a0a0a'], bands: '#9a9690',
-    ceph: 1.15, abd: [0.95, 0.95], legLen: 0.7, legW: 1.35, abdomen: 'spots', mark: '#f0ece4', eyes: 'jumper', chelicerae: '#3aa08a',
+    ceph: 1.15, abd: [0.95, 0.95], legLen: 0.7, legW: 1.35, stride: 1.7, arch: 1.55, abdomen: 'spots', mark: '#f0ece4', eyes: 'jumper', chelicerae: '#3aa08a',
     speed: [60, 120], pace: { drift: 0.25, dartRate: 0.5, dart: [2, 0.25] }, pauseRate: 1.2 },
   // Loxosceles reclusa: plain tan, a dark violin on the carapace, long uniform legs.
   { id: 'brownrecluse', label: 'Brown recluse', mm: 8, body: ['#c8a070', '#94683c', '#3a2410'], legs: ['#b88c5c', '#7a5430'], carapace: 'violin', mark: 'rgba(60,32,14,0.85)',
@@ -49,14 +49,14 @@ export const SPIDER_BREEDS = [
   // Eratigena atrica: brown, pale chevrons on the abdomen, a striped carapace, long hairy legs; a fast sprinter.
   { id: 'giantspider', label: 'Giant house spider', mm: 15, body: ['#8a6a4a', '#4a3420', '#180e06'], legs: ['#6a5038', '#2e2016'], bands: '#9a7a58',
     abd: [1.05, 0.9], legLen: 1.4, legW: 0.95, carapace: 'stripe', stripe: 'rgba(30,18,8,0.6)', abdomen: 'chevrons', mark: 'rgba(230,200,150,0.55)',
-    speed: [150, 300], pace: { drift: 0.2, dartRate: 0.2, dart: [1.8, 0.4] }, pauseRate: 1 },
+    speed: [100, 200], stride: 1.3, pace: { drift: 0.2, dartRate: 0.25, dart: [1.9, 0.4] }, pauseRate: 1 },
   // Salticus scenicus: small, boldly black-and-white striped, big front eyes; hops.
   { id: 'zebrajumper', label: 'Zebra jumping spider', mm: 6, body: ['#3a3836', '#141312', '#040404'], legs: ['#5a5650', '#1a1816'], bands: '#d8d4cc',
-    ceph: 1.1, abd: [1, 0.85], legLen: 0.7, legW: 1.1, abdomen: 'stripes', mark: '#f0ece4', eyes: 'jumper',
-    speed: [50, 100], pace: { drift: 0.25, dartRate: 0.5, dart: [2, 0.25] }, pauseRate: 1.2 },
+    ceph: 1.1, abd: [1, 0.85], legLen: 0.7, legW: 1.1, arch: 1.5, abdomen: 'stripes', mark: '#f0ece4', eyes: 'jumper',
+    speed: [40, 85], pace: { drift: 0.25, dartRate: 0.5, dart: [2, 0.25] }, pauseRate: 1.2 },
   // Cheiracanthium inclusum: pale yellow-green, an oval abdomen, dark-tipped feet and dark jaws; a quick night hunter.
   { id: 'sacspider', label: 'Yellow sac spider', mm: 7, body: ['#f0ecb8', '#ccc888', '#6a6a3a'], legs: ['#e8e4b0', '#a8a470'], tips: '#2a2418', chelicerae: '#3a2a18',
-    ceph: 0.9, abd: [1.05, 0.85], legLen: 1.1, legW: 0.75, abdomen: 'none', speed: [80, 160], pauseRate: 1 }
+    ceph: 0.9, abd: [1.05, 0.85], legLen: 1.1, legW: 0.75, stride: 1.3, arch: 1.6, abdomen: 'none', speed: [80, 160], pauseRate: 1 }
 ];
 export const SPIDER_IDS = SPIDER_BREEDS.map(b => b.id);
 
@@ -223,7 +223,8 @@ function makeSpider(br) {
     pauseTime: [0.6, 3.0],
     maxTurn: 5,
     wander: 0.9,
-    stride: 18 * legLen,          // long-legged kinds take longer steps
+    stride: 18 * legLen * (br.stride ?? 1),   // long-legged kinds take longer steps, and quick runners longer still
+    keepApart: Math.min(1.6, 0.8 * legLen),   // personal space from other spiders (fraction of size): legs at most touch
     draw(ctx, bug) {
       const L = bug.light;
       withBugFrame(ctx, bug, () => {
@@ -232,10 +233,11 @@ function makeSpider(br) {
         for (const side of [-1, 1]) {
           LEGS.forEach((l, i) => {
             const segs = [[26 * l.len, 0, 4.6 * legW], [30 * l.len, l.bend, 3.6 * legW], [22 * l.len, l.bend * 0.6, 2.4 * legW]];
-            const pose = walkLeg3D(bug, { hx: l.hx, hy: side * l.hy, edge: bodyEdge(l.hx, outline) - l.hy, side, angle: l.angle, segs, ...tetrapodGait(bug, i, side), hz: ceph.ry * 0.5, curl: l.bend });
+            const pose = walkLeg3D(bug, { hx: l.hx, hy: side * l.hy, edge: bodyEdge(l.hx, outline) - l.hy, side, angle: l.angle, segs, ...tetrapodGait(bug, i, side), hz: ceph.ry * 0.5, curl: l.bend, arch: br.arch ?? 1.45, key: i * 2 + (side > 0), recoil: bug.recoil?.[legs.length] ?? 0 });
             legs.push({ l, pose, widths: segs.map(([, , w]) => w) });
           });
         }
+        bug.legPoses = legs.map(g => g.pose);   // last drawn pose of each leg, for tests and diagnostics
         for (const { pose, widths } of legs) legShadow(ctx, L, pose, widths[1]);
         for (const { l, pose, widths } of legs) {
           drawLeg3D(ctx, L, pose, widths, br.legs[1]);

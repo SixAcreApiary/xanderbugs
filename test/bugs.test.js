@@ -267,6 +267,269 @@ test('a 3D leg moves smoothly through a stride: no knee snaps, foot planted then
   assert.ok(lifted > 400 * 0.3 && lifted < 400 * 0.4, 'the foot is up for the swing share of the cycle');
 });
 
+test('running lengthens the stride and puts feet down for less of it, so legs speed up only gently', async () => {
+  const { advanceGait } = await import('../src/lib/bugs/engine.js');
+  const b = createBug('spider', { width: 800, height: 600, rng: seeded(5) });
+  const cadence = speed => {
+    b.speed = speed;
+    for (let i = 0; i < 120; i++) advanceGait(b, (speed / 60), 0, 1 / 60);
+    return speed / b.stridePx;
+  };
+  const walk = cadence(b.cruise), walkDuty = gaitLib.tetrapodGait(b, 0, -1).duty;
+  const run = cadence(b.cruise * 1.8), runDuty = gaitLib.tetrapodGait(b, 0, -1).duty;
+  assert.ok(run / walk < 1.35, `cadence rose ${(run / walk).toFixed(2)}x for 1.8x the speed`);
+  assert.ok(runDuty < walkDuty && runDuty >= 0.45, `duty ${walkDuty.toFixed(2)} -> ${runDuty.toFixed(2)}`);
+  cadence(b.cruise * 0.5);
+  assert.ok(Math.abs(b.run - 1) < 1e-3, 'back to its walking stride when it slows');
+});
+
+test('spiders keep their distance from each other (legs at most touching), but not from other bugs', async () => {
+  const { keepApart } = await import('../src/lib/bugs/engine.js');
+  const closest = ids => {
+    const bugs = ids.map((id, i) => {
+      const b = createBug(id, { width: 800, height: 600, rng: seeded(10 + i) });
+      Object.assign(b, { x: i ? 600 : 200, y: 300, heading: i ? Math.PI : 0, entered: true, delay: 0 });
+      b.species = { ...b.species, pauseRate: 0 };
+      b.waypoints = [{ x: i ? -100 : 900, y: 300 }];
+      return b;
+    });
+    let min = Infinity;
+    for (let f = 0; f < 60 * 8; f++) {
+      for (const b of bugs) stepBug(b, 1 / 60, 800, 600, bugs);
+      min = Math.min(min, Math.hypot(bugs[0].x - bugs[1].x, bugs[0].y - bugs[1].y));
+    }
+    return { min, room: keepApart(...bugs), bugs };
+  };
+  const spiders = closest(['spider', 'giantspider']);
+  assert.ok(spiders.room > 0);
+  assert.ok(spiders.min > spiders.room * 0.7, `two spiders meeting head on came within ${spiders.min.toFixed(0)} px (room ${spiders.room.toFixed(0)})`);
+  const mixed = closest(['spider', 'cockroach']);
+  assert.equal(mixed.room, 0, 'other bugs only need their bodies clear');
+});
+
+test('a planted 3D foot sticks to the page while steering changes how the stride bends', () => {
+  const bug = { x: 400, y: 300, heading: 0.3, size: 100, stridePx: 60, phaseL: 0.2, phaseR: 0.2, speedScale: 1, turnMix: 0 };
+  const leg = { hx: 22, hy: -8, side: -1, angle: 0.55, segs: [[27, 0, 4], [31, -0.35, 3], [23, -0.2, 2]], offset: 0, duty: 0.64, edge: 4, key: 0 };
+  const world = p => ({ x: bug.x + p.x * Math.cos(bug.heading) - p.y * Math.sin(bug.heading), y: bug.y + p.x * Math.sin(bug.heading) + p.y * Math.cos(bug.heading) });
+  const start = world(gaitLib.walkLeg3D(bug, leg).foot);
+  for (let i = 0; i < 10; i++) {
+    bug.turnMix = (i % 2 ? 1 : -1) * 0.4;   // a crowd jostling its steering
+    bug.phaseL += 0.05;
+    bug.x += 0.5;
+    const p = gaitLib.walkLeg3D(bug, leg);
+    assert.equal(p.lift, 0);
+    const now = world(p.foot);
+    assert.ok(Math.hypot(now.x - start.x, now.y - start.y) < 1e-6, `planted foot moved at step ${i}`);
+  }
+  assert.ok(bug.feet[0].planted);
+});
+
+test('a lifted leg casts no shadow at the top of its swing', () => {
+  const drawn = [];
+  const ctx = new Proxy({}, { get: (t, k) => k === 'stroke' ? () => drawn.push(t.strokeStyle) : (k in t ? t[k] : () => {}), set: (t, k, v) => { t[k] = v; return true; } });
+  const pose = gaitLib.legPose3D({ x: 0, y: 0 }, 6, { x: 30, y: 40 }, 0, [30, 34, 24]);
+  gaitLib.legShadow(ctx, { x: -0.4, y: -0.6 }, { ...pose, lift: 0 }, 3);
+  gaitLib.legShadow(ctx, { x: -0.4, y: -0.6 }, { ...pose, lift: 0.5 }, 3);
+  gaitLib.legShadow(ctx, { x: -0.4, y: -0.6 }, { ...pose, lift: 1 }, 3);
+  const alpha = drawn.map(c => +/,([\d.]+)\)$/.exec(c)[1]);
+  assert.equal(alpha.length, 2, 'nothing drawn at full lift');
+  assert.ok(alpha[1] < alpha[0], 'fades as the foot lifts');
+});
+
+test('turning eases: a sudden flip in steering does not flick the body round', () => {
+  const b = createBug('spider', { width: 800, height: 600, rng: seeded(4) });
+  Object.assign(b, { x: 400, y: 300, heading: 0, entered: true, delay: 0 });
+  b.species = { ...b.species, pauseRate: 0 };
+  const turns = [];
+  for (let f = 0; f < 40; f++) {
+    b.waypoints = [{ x: 400 + 300 * Math.cos(f % 10 < 5 ? 1.2 : -1.2), y: 300 + 300 * Math.sin(f % 10 < 5 ? 1.2 : -1.2) }];   // goal flips side every 5 frames
+    const h = b.heading;
+    stepBug(b, 1 / 60, 800, 600, [b]);
+    turns.push(b.heading - h);
+  }
+  const maxTurn = b.species.maxTurn / 60;
+  for (let i = 1; i < turns.length; i++) assert.ok(Math.abs(turns[i] - turns[i - 1]) < maxTurn * 0.5, `turn rate jumped at frame ${i}`);
+});
+
+test('a crowd of spiders: planted feet hold, bodies turn smoothly and nobody crowds in', async () => {
+  const { auditCrowd } = await import('./helpers/legaudit.js');
+  const { SPIDER_IDS } = await import('../src/lib/bugs/species/spider.js');
+  const r = auditCrowd(SPIDER_IDS, { count: 20, seconds: 12, rng: seeded(21) });
+  assert.ok(r.slip99 < 0.3, `planted feet slipped ${r.slip99.toFixed(2)} px (99th percentile)`);
+  assert.ok(r.jerk99 < 0.04, `turn rate jerked ${r.jerk99.toFixed(3)} rad/frame (99th percentile)`);
+  assert.ok(r.closest > 0.68, `two spiders came within ${(r.closest * 100).toFixed(0)}% of their personal space`);
+});
+
+test('a swinging spider leg folds in as it lifts, then reaches out before it sets down', () => {
+  const hip = { x: 10, y: 8 }, rest = { x: 20, y: 60 };
+  const b = { size: 100, stridePx: 40, phaseL: 0, phaseR: 0 };
+  const radius = f => Math.hypot(f.x - hip.x, f.y - hip.y);
+  let early = 0, late = 0;
+  for (let i = 0; i < 200; i++) {
+    b.phaseL = (i / 200) * 2 * Math.PI;
+    const plain = gaitLib.footPosition(b, -1, rest, 0, 0.6, 1e9, hip);
+    const shaped = gaitLib.footPosition(b, -1, rest, 0, 0.6, 1e9, { ...hip, fold: 0.14, bulge: 0.07 });
+    if (!plain.lift) { assert.ok(Math.hypot(shaped.x - plain.x, shaped.y - plain.y) < 1e-9, 'planted feet are unchanged'); continue; }
+    if (plain.swing > 0.1 && plain.swing < 0.4) { early++; assert.ok(radius(shaped) < radius(plain), 'folded in early in the swing'); }
+    if (plain.swing > 0.6 && plain.swing < 0.9) { late++; assert.ok(radius(shaped) > radius(plain), 'reaching out late in the swing'); }
+  }
+  assert.ok(early && late);
+});
+
+// Legs I pull by flexing and legs IV push by extending; legs II and III mostly swing about the hip.
+test('spider knees flex and extend through a stride but never lock straight', async () => {
+  const { SPIDER_IDS } = await import('../src/lib/bugs/species/spider.js');
+  const { recorder } = await import('./helpers/legaudit.js');
+  const ang = (p, a, c) => {
+    const u = [a.x - p.x, a.y - p.y, a.z - p.z], v = [c.x - p.x, c.y - p.y, c.z - p.z];
+    return Math.acos((u[0] * v[0] + u[1] * v[1] + u[2] * v[2]) / Math.hypot(...u) / Math.hypot(...v)) * 180 / Math.PI;
+  };
+  for (const id of SPIDER_IDS) {
+    const b = createBug(id, { width: 800, height: 600, rng: seeded(3) });
+    Object.assign(b, { x: NaN, heading: 0, size: 100, stridePx: (b.stridePx * 100) / b.size, light: { x: -0.45, y: -0.65 }, moving: 1 });
+    const lo = Array(8).fill(180), hi = Array(8).fill(0);
+    for (let k = 0; k < 120; k++) {
+      b.phaseL = b.phaseR = (k / 120) * 2 * Math.PI;
+      SPECIES[id].draw(recorder().ctx, b, 1 / 60);
+      b.legPoses.forEach((p, i) => { const a = ang(p.knee, p.hip, p.ankle); lo[i] = Math.min(lo[i], a); hi[i] = Math.max(hi[i], a); });
+    }
+    lo.forEach((l, i) => {
+      assert.ok(hi[i] < 160, `${id} leg ${i}: knee straightens to ${hi[i].toFixed(0)} deg`);
+      assert.ok(l > 30, `${id} leg ${i}: knee folds to ${l.toFixed(0)} deg`);
+      if (i % 4 === 0 || i % 4 === 3) assert.ok(hi[i] - l > 25, `${id} leg ${i}: knee barely moves (${l.toFixed(0)}-${hi[i].toFixed(0)} deg)`);
+    });
+  }
+});
+
+test('deep inside another spider\'s room a step may not close the gap, but may always open it', async () => {
+  const { keepRoom, keepApart, KEEP_FLOOR } = await import('../src/lib/bugs/engine.js');
+  const a = createBug('spider', { width: 800, height: 600, rng: seeded(1) });
+  const o = createBug('spider', { width: 800, height: 600, rng: seeded(2) });
+  Object.assign(a, { x: 300, y: 300, heading: 0, entered: true });
+  o.entered = true;
+  const room = keepApart(a, o);
+  Object.assign(o, { x: 300 + room * (KEEP_FLOOR - 0.05), y: 300 });
+  assert.equal(keepRoom(a, [o], 5), 0, 'no closer');
+  assert.equal(keepRoom(a, [o], -5), -5, 'backing away is fine');
+  a.heading = Math.PI / 2;
+  assert.equal(keepRoom(a, [o], 5), 5, 'stepping aside opens the gap');
+  Object.assign(o, { x: 300 + room * 0.95 });
+  a.heading = 0;
+  assert.equal(keepRoom(a, [o], 5), 5, 'the outer part of its room is kept by steering alone, so spiders can squeeze past');
+});
+
+test('a big release of every kind of spider flows instead of jamming', async () => {
+  const { SPIDER_IDS } = await import('../src/lib/bugs/species/spider.js');
+  const sw = new Swarm({ species: SPIDER_IDS, count: 30, width: 1280, height: 720, rng: seeded(5) });
+  let walking = 0, held = 0, f = 0;
+  for (; !sw.done && f < 60 * 240; f++) {
+    sw.update(1 / 60);
+    for (const b of sw.bugs) if (!b.done && b.entered && !b.paused && b.delay <= 0) { walking++; if (b.hemmed > 0.5) held++; }
+  }
+  assert.ok(sw.done, 'every spider has left within four minutes');
+  assert.ok(held / walking < 0.12, `held up ${(100 * held / walking).toFixed(1)}% of their walking time`);
+});
+
+test('a touched spider leg flinches mildly, only that leg, and settles back once free', async () => {
+  const { touchLegs } = await import('../src/lib/bugs/engine.js');
+  const { recorder } = await import('./helpers/legaudit.js');
+  const make = (seed, x, heading) => {
+    const b = createBug('spider', { width: 800, height: 600, rng: seeded(seed) });
+    Object.assign(b, { x, y: 300, heading, entered: true, delay: 0 });
+    b.species.draw(recorder().ctx, b);
+    return b;
+  };
+  const a = make(1, 300, 0), far = make(2, 700, Math.PI);
+  touchLegs([a], [a, far], 1 / 60);
+  assert.ok(a.recoil.every(r => r === 0), 'nothing touching, no flinch');
+  const reach = Math.max(...a.legPoses.map(p => Math.hypot(p.foot.x, p.foot.y))) * a.size / 100;
+  const near = make(2, 300 + reach * 1.6, Math.PI);   // face to face, front legs crossing at the tips
+  for (let f = 0; f < 6; f++) touchLegs([a], [a, near], 1 / 60);
+  const flinched = a.recoil.filter(r => r > 0.3).length;
+  assert.ok(flinched > 0 && flinched < a.recoil.length, `${flinched} of ${a.recoil.length} legs flinched`);
+  near.x = 1000;
+  for (let f = 0; f < 60; f++) touchLegs([a], [a, near], 1 / 60);
+  assert.ok(a.recoil.every(r => r < 0.05), 'settled back within a second');
+});
+
+test('a flinch draws the foot back and up but leaves its planted spot alone', () => {
+  const leg = { hx: 22, hy: -8, side: -1, angle: 0.55, segs: [[27, 0, 4], [31, -0.35, 3], [23, -0.2, 2]], offset: 0, duty: 0.64, edge: 4, key: 0 };
+  const bug = () => ({ x: 400, y: 300, heading: 0, size: 100, stridePx: 60, phaseL: 0.2, phaseR: 0.2, speedScale: 1 });
+  const calm = bug(), touched = bug();
+  const p0 = gaitLib.walkLeg3D(calm, leg), p1 = gaitLib.walkLeg3D(touched, { ...leg, recoil: 1 });
+  const reach = p => Math.hypot(p.foot.x - p.hip.x, p.foot.y - p.hip.y);
+  assert.ok(reach(p1) < reach(p0) * 0.95 && reach(p1) > reach(p0) * 0.85, 'drawn back a little');
+  assert.ok(p1.foot.z > 0 && p0.foot.z === 0, 'lifted a touch');
+  assert.deepEqual(touched.feet[0].world, calm.feet[0].world, 'still planted on the same spot');
+});
+
+test('now and then a leg touch startles the smaller spider (or, between equals, the one walked into) into a short dash', async () => {
+  const { touchLegs, startleCandidate } = await import('../src/lib/bugs/engine.js');
+  const { recorder } = await import('./helpers/legaudit.js');
+  const make = (id, seed, x, heading) => {
+    const b = createBug(id, { width: 800, height: 600, rng: seeded(seed) });
+    Object.assign(b, { x, y: 300, heading, entered: true, delay: 0, speed: 0 });
+    b.species.draw(recorder().ctx, b);
+    return b;
+  };
+  const big = make('giantspider', 1, 300, 0), small = make('spider', 2, 0, Math.PI);
+  assert.equal(startleCandidate(big, small), small);
+  const twinA = make('spider', 3, 0, 0), twinB = make('spider', 3, 0, 0);
+  twinA.speed = 40;
+  assert.equal(startleCandidate(twinA, twinB), twinB, 'the slower one was walked into');
+
+  const meet = (rngValue) => {
+    const a = make('blackwidow', 4, 300, 0), b = make('spider', 5, 300, Math.PI);
+    const reach = Math.max(...a.legPoses.map(p => Math.hypot(p.foot.x, p.foot.y))) * a.size / 100;
+    const breach = Math.max(...b.legPoses.map(p => Math.hypot(p.foot.x, p.foot.y))) * b.size / 100;
+    b.x = 300 + (reach + breach) * 0.6;   // face to face, legs crossing
+    a.rng = b.rng = () => rngValue;
+    touchLegs([a, b], [a, b], 1 / 60);
+    return { a, b };
+  };
+  const lucky = meet(0.99);
+  assert.ok(lucky.a.alarm === 0 && lucky.b.alarm === 0, 'usually nothing more than a flinch');
+  const { a, b } = meet(0);
+  const smaller = startleCandidate(a, b), other = smaller === a ? b : a;
+  assert.ok(smaller.alarm > 0.5 && other.alarm === 0, 'only the more likely one takes fright');
+  const away = Math.atan2(smaller.y - other.y, smaller.x - other.x);
+  assert.ok(Math.abs(Math.atan2(Math.sin(smaller.fleeDir - away), Math.cos(smaller.fleeDir - away))) < 1e-9, 'and dashes away from the other');
+});
+
+test('legs left touching hold back instead of flinching over and over, and a knot breaks up', async () => {
+  const { touchLegs, startleCandidate } = await import('../src/lib/bugs/engine.js');
+  const { recorder } = await import('./helpers/legaudit.js');
+  const make = (id, seed, x, heading) => {
+    const b = createBug(id, { width: 800, height: 600, rng: seeded(seed) });
+    Object.assign(b, { x, y: 300, heading, entered: true, delay: 0, speed: 0 });
+    b.species.draw(recorder().ctx, b);
+    b.rng = () => 0.99;   // no chance startles: only irritation
+    return b;
+  };
+  const a = make('spider', 4, 300, 0), b = make('spider', 5, 300, Math.PI);
+  const r = s => Math.max(...s.legPoses.map(p => Math.hypot(p.foot.x, p.foot.y))) * s.size / 100;
+  b.x = 300 + (r(a) + r(b)) * 0.6;
+  const fresh = () => a.recoilHit.filter(h => h === 1).length;
+  touchLegs([a, b], [a, b], 1 / 60);
+  assert.ok(fresh() > 0, 'a first touch is a flinch');
+  for (let f = 0; f < 20; f++) touchLegs([a, b], [a, b], 1 / 60);
+  assert.equal(fresh(), 0, 'still touching: held back, not flinching afresh');
+  assert.ok(a.recoil.some(v => v > 0.4 && v < 0.6), 'held mildly drawn back');
+  const away = b.x;
+  b.x = 2000;
+  for (let f = 0; f < 20; f++) touchLegs([a, b], [a, b], 1 / 60);
+  b.x = away;
+  touchLegs([a, b], [a, b], 1 / 60);
+  assert.equal(fresh(), 0, 'brushing the same legs again moments later is the same encounter');
+  let gaveWay = null;
+  for (let f = 0; f < 60 * 4 && !gaveWay; f++) {
+    touchLegs([a, b], [a, b], 1 / 60);
+    gaveWay = [a, b].find(s => s.alarm > 0.8) ?? null;
+  }
+  assert.ok(gaveWay, 'tangled for a few seconds, one gives way');
+  assert.equal(gaveWay, startleCandidate(a, b), 'the bumped one (they are equal sizes and both still)');
+});
+
 test('a planted foot stays put on the ground while the body walks over it', async () => {
   const { advanceGait } = await import('../src/lib/bugs/engine.js');
   const b = createBug('beetle', { width: 800, height: 600, rng: seeded(12) });
@@ -662,7 +925,7 @@ test('in a crowd, walking bugs turn along arcs instead of pivoting; only stopped
     sw.update(1 / 60);
     sw.bugs.forEach((b, i) => {
       const p = prev[i];
-      if (b.done || b.delay > 0 || p.still || b.paused || b.hemmed > 0 || b.alarm > 0.15 || b.dance || b.loosen || b.attend) return;   // held up, startled, dancing or buzzing loose: may turn tightly
+      if (b.done || b.delay > 0 || p.still || b.veer > 0 || b.paused || b.hemmed > 0 || b.alarm > 0.15 || b.dance || b.loosen || b.attend) return;   // held up, sidestepping, startled, dancing or buzzing loose: may turn tightly
       const t = Math.abs(Math.atan2(Math.sin(b.heading - p.h), Math.cos(b.heading - p.h)));
       const d = Math.hypot(b.x - p.x, b.y - p.y);
       const minR = b.size * (b.species.trail ? 0.25 : 0.5);
