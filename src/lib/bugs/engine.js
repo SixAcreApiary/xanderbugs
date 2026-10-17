@@ -2,7 +2,7 @@ import { localLight, TAU, TURN_RADIUS, sideDrive } from './common.js';
 import { ANTS } from './species/ant.js';
 import cockroach from './species/cockroach.js';
 import centipede from './species/centipede.js';
-import spider from './species/spider.js';
+import { SPIDERS } from './species/spider.js';
 import silverfish from './species/silverfish.js';
 import beetle from './species/beetle.js';
 import earwig from './species/earwig.js';
@@ -17,7 +17,7 @@ import { sampleTrail } from './species/centipede.js';
 import { danger, REPELLENT, LOOM } from './ecology.js';
 import { lifeScale } from './lifesize.js';
 
-export const SPECIES = Object.fromEntries([...ANTS, cockroach, centipede, spider, silverfish, beetle, earwig, yellowjacket, stinkbug, bedbug, housecentipede, ...BEES, ...BUMBLES, ...FIREFLIES].map(s => [s.id, s]));
+export const SPECIES = Object.fromEntries([...ANTS, cockroach, centipede, ...SPIDERS, silverfish, beetle, earwig, yellowjacket, stinkbug, bedbug, housecentipede, ...BEES, ...BUMBLES, ...FIREFLIES].map(s => [s.id, s]));
 
 const MAX_LIFETIME_S = 45;
 const NEVER_ENTERED_S = 12;

@@ -1,9 +1,9 @@
 // Every selectable bug. Kinds we have several of are grouped (the options page shows each group under its own
-// heading, labels within a group are short); ids are kept in step with the species files (the tests check).
+// heading, groups and the bugs in them sorted alphabetically); ids are kept in step with the species files (the
+// tests check).
 export const BUG_SPECIES = [
   { id: 'cockroach', label: 'Cockroaches' },
   { id: 'centipede', label: 'Centipedes' },
-  { id: 'spider', label: 'Spiders' },
   { id: 'silverfish', label: 'Silverfish' },
   { id: 'beetle', label: 'Beetles' },
   { id: 'earwig', label: 'Earwigs' },
@@ -36,7 +36,19 @@ export const BUG_SPECIES = [
   { id: 'treetopfirefly', label: 'Spring tree-top flasher', group: 'Fireflies' },
   { id: 'southwestsyncfirefly', label: 'Southwest synchronous', group: 'Fireflies' },
   { id: 'loopyfivefirefly', label: 'Loopy five', group: 'Fireflies' },
-  { id: 'smokiessyncfirefly', label: 'Smokies synchronous', group: 'Fireflies' }
+  { id: 'smokiessyncfirefly', label: 'Smokies synchronous', group: 'Fireflies' },
+  { id: 'spider', label: 'Wolf spider', group: 'Spiders' },
+  { id: 'housespider', label: 'American house spider', group: 'Spiders' },
+  { id: 'blackwidow', label: 'Black widow', group: 'Spiders' },
+  { id: 'boldjumper', label: 'Bold jumping spider', group: 'Spiders' },
+  { id: 'brownrecluse', label: 'Brown recluse', group: 'Spiders' },
+  { id: 'cellarspider', label: 'Cellar spider', group: 'Spiders' },
+  { id: 'gardenspider', label: 'European garden spider', group: 'Spiders' },
+  { id: 'yellowgardenspider', label: 'Yellow garden spider', group: 'Spiders' },
+  { id: 'crabspider', label: 'Goldenrod crab spider', group: 'Spiders' },
+  { id: 'giantspider', label: 'Giant house spider', group: 'Spiders' },
+  { id: 'zebrajumper', label: 'Zebra jumping spider', group: 'Spiders' },
+  { id: 'sacspider', label: 'Yellow sac spider', group: 'Spiders' }
 ];
 export const OTHER_GROUP = 'Other bugs';
 
