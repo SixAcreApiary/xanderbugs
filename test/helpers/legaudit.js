@@ -2,7 +2,7 @@
 // walking leg, finds where its femur comes out from under the body (the fills drawn on top of it). Where
 // a leg attaches, that visible joint should stay put while the leg walks; if it moves, the leg looks like
 // it slides along the body.
-import { SPECIES, createBug } from '../../src/lib/bugs/engine.js';
+import { SPECIES, createBug, Swarm, keepApart } from '../../src/lib/bugs/engine.js';
 
 const mul = (m, [a, b, c, d, e, f]) => [m[0] * a + m[2] * b, m[1] * a + m[3] * b, m[0] * c + m[2] * d, m[1] * c + m[3] * d, m[0] * e + m[2] * f + m[4], m[1] * e + m[3] * f + m[5]];
 const apply = (m, x, y) => [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]];
@@ -152,4 +152,37 @@ export function auditSpecies(id, { frames = 48, turnMix = 0, speedScale = 1 } = 
     const depth = pts.map(p => p.depth);
     return { root: l.root, exit: [cx, cy], slide, hidden: l.exits.length - pts.length, depth: [Math.min(...depth), Math.max(...depth)], femur: Math.max(...l.femur) };
   });
+}
+
+// A crowd in a real Swarm: 99th-percentile per-frame slip of planted feet (px), change in turn rate
+// (rad/frame), and the closest any two on-screen bugs that keep a personal space came, as a share of it (not
+// counting a frightened bug, which bolts regardless).
+// Needs species that record their leg poses (bug.legPoses).
+export function auditCrowd(species, { count = 20, seconds = 12, width = 1280, height = 800, rng = Math.random } = {}) {
+  const swarm = new Swarm({ species, count, width, height, rng });
+  const prev = new Map(), slips = [], jerks = [];
+  let closest = Infinity;
+  const wrap = a => Math.atan2(Math.sin(a), Math.cos(a));
+  for (let f = 0; f < 60 * seconds && !swarm.done; f++) {
+    swarm.update(1 / 60);
+    swarm.draw(recorder().ctx);
+    const live = swarm.bugs.filter(b => !b.done && b.delay <= 0 && !(b.alarm > 0.15));
+    for (const b of live) for (const o of live) {
+      const room = o !== b && keepApart(b, o);
+      if (room) closest = Math.min(closest, Math.hypot(o.x - b.x, o.y - b.y) / room);
+    }
+    for (const b of swarm.bugs) {
+      if (!b.legPoses || b.done || b.delay > 0) continue;
+      const k = b.size / 100, c = Math.cos(b.heading), s = Math.sin(b.heading);
+      const feet = b.legPoses.map(p => ({ x: b.x + (p.foot.x * c - p.foot.y * s) * k, y: b.y + (p.foot.x * s + p.foot.y * c) * k, up: p.lift > 0 }));
+      const p = prev.get(b), turn = p ? wrap(b.heading - p.h) : 0;
+      if (p) {
+        feet.forEach((ft, i) => { if (!ft.up && !p.feet[i].up) slips.push(Math.hypot(ft.x - p.feet[i].x, ft.y - p.feet[i].y)); });
+        jerks.push(Math.abs(wrap(turn - p.turn)));
+      }
+      prev.set(b, { feet, h: b.heading, turn });
+    }
+  }
+  const p99 = a => [...a].sort((x, y) => x - y)[Math.floor(0.99 * (a.length - 1))] ?? 0;
+  return { slip99: p99(slips), jerk99: p99(jerks), closest, samples: slips.length };
 }
