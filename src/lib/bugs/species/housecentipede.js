@@ -31,7 +31,7 @@ function legBands(ctx, hx, hy, foot, side, segs) {
 
 export default {
   id: 'housecentipede',
-  size: [36, 46],
+  size: [38.1, 43.9],
   previewSize: 34,
   previewShift: 0.45,  // long trailing legs: shift right so they fit the cell
   speed: [220, 380],

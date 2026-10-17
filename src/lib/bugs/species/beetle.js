@@ -15,7 +15,7 @@ const PALETTES = [
 
 export default {
   id: 'beetle',
-  size: [24, 32],
+  size: [26, 30],
   previewSize: 40,
   // Legs attach only to the thorax (pronotum and the base of the elytra); the test suite checks every hip lies within it.
   anatomy: { legSection: [-4, 38], hips: LEGS.map(l => l.x) },

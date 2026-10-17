@@ -12,7 +12,7 @@ const BODY = ['#a85a32', '#5a2812', '#1e0a04'];
 
 export default {
   id: 'earwig',
-  size: [26, 34],
+  size: [27.9, 32.1],
   previewSize: 44,
   // Legs attach only to the thorax (pronotum and short elytra); the test suite checks every hip lies within it.
   anatomy: { legSection: [4, 31], hips: LEGS.map(l => l.x) },

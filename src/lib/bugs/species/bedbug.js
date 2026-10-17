@@ -12,7 +12,7 @@ const BODY = ['#c06a3a', '#7a3216', '#2e0e04'];
 
 export default {
   id: 'bedbug',
-  size: [12, 16],
+  size: [13, 15],
   previewSize: 36,
   // Legs attach only to the thorax (pronotum region), never the abdomen; the test suite checks every hip lies within it.
   anatomy: { legSection: [11, 33], hips: LEGS.map(l => l.x) },

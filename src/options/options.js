@@ -1,6 +1,6 @@
 import { loadSettings, saveSettings, onSettingsChanged, DEFAULTS, LIMITS, BUG_SPECIES, OTHER_GROUP } from '../lib/settings.js';
 import { parseBlocklist } from '../lib/blocklist.js';
-import { createPreviewBug, drawPreview } from '../lib/bugs/preview.js';
+import { createPreviewBug, drawPreview, drawPreviewGlow } from '../lib/bugs/preview.js';
 import { releaseSwarm } from '../lib/bugs/overlay.js';
 import { compositeWithShadow } from '../lib/bugs/shadow.js';
 
@@ -112,6 +112,8 @@ function startPreviews() {
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       compositeWithShadow(ctx, layer, dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      drawPreviewGlow(ctx, bug);
     }
     requestAnimationFrame(frame);
   };
@@ -133,6 +135,7 @@ function syncForm() {
   set('blocklist', 'value', settings.blocklist.join('\n'));
   calibration = settings.bugs.devicePxPerMm;
   set('life-size', 'checked', settings.bugs.lifeSize);
+  set('scatter', 'checked', settings.bugs.scatter);
   set('card-size', 'value', Math.round(cardWidthFor(calibration)));
   showCard();
   for (const input of $('species').querySelectorAll('input[type=checkbox]')) input.checked = settings.bugs.species.includes(input.value);
@@ -161,6 +164,7 @@ function collect() {
       species: checked('species'),
       weights: Object.fromEntries([...$('species').querySelectorAll('input[type=range]')].map(r => [r.dataset.species, Number(r.value)])),
       lifeSize: $('life-size').checked,
+      scatter: $('scatter').checked,
       devicePxPerMm: calibration
     },
     blocklist: parsed
@@ -212,13 +216,14 @@ $('card-size').addEventListener('input', () => {
   collectAndSave();
 });
 $('life-size').addEventListener('change', collectAndSave);
+$('scatter').addEventListener('change', collectAndSave);
 
 $('all-on').addEventListener('click', () => setAll($('species'), true));
 $('all-off').addEventListener('click', () => setAll($('species'), false));
 $('release').addEventListener('click', () => {
   const species = settings.bugs.species.length ? settings.bugs.species : DEFAULTS.bugs.species;
   const count = Math.max(settings.bugs.perSwarmMax, 3);
-  releaseSwarm({ species, count, speed: settings.bugs.speed, weights: settings.bugs.weights, devicePxPerMm: settings.bugs.lifeSize ? settings.bugs.devicePxPerMm : 0 });
+  releaseSwarm({ species, count, speed: settings.bugs.speed, weights: settings.bugs.weights, devicePxPerMm: settings.bugs.lifeSize ? settings.bugs.devicePxPerMm : 0, scatter: settings.bugs.scatter });
   setStatus(`Released ${count} bug${count === 1 ? '' : 's'}.`);
 });
 $('reset').addEventListener('click', async () => {

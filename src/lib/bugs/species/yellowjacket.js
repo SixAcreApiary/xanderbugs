@@ -55,7 +55,7 @@ function gasterBands(ctx) {
 
 export default {
   id: 'yellowjacket',
-  size: [38, 46],
+  size: [39.1, 44.9],
   previewSize: 64,
   // Legs attach only to the mesosoma (thorax), never the waist or gaster; the test suite checks every hip lies within it.
   anatomy: { legSection: [5, 31], hips: LEGS.map(l => l.x) },

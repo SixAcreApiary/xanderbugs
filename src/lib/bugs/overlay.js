@@ -7,7 +7,9 @@ import { compositeWithShadow } from './shadow.js';
 // Full-viewport, click-through canvas in a closed shadow root so the host page can neither style nor inspect it.
 // Resolves when every bug has left the screen.
 // devicePxPerMm (a screen calibration) draws the bugs at life size, at whatever zoom the page is shown.
-export function releaseSwarm({ species, count, speed = 1, weights, devicePxPerMm = 0, doc = document, win = window, rng = Math.random }) {
+// scatter: bugs run from the mouse pointer while it's moving. Only its position on this page is used, and only here.
+export const POINTER_QUIET_MS = 1500;   // a pointer left still this long stops frightening them
+export function releaseSwarm({ species, count, speed = 1, weights, devicePxPerMm = 0, scatter = false, doc = document, win = window, rng = Math.random }) {
   const host = doc.createElement('div');
   host.setAttribute('data-xanderbugs-overlay', '');
   host.style.cssText = 'all:initial;position:fixed;inset:0;pointer-events:none;z-index:2147483647;contain:strict;';
@@ -33,12 +35,25 @@ export function releaseSwarm({ species, count, speed = 1, weights, devicePxPerMm
   const swarm = new Swarm({ species, count, speed, weights, width: w, height: h, rng, crowd, lifePxPerMm });
   const onResize = () => { fit(); swarm.resize(w, h); };
   win.addEventListener('resize', onResize);
+  let pointer = null;
+  const onMove = e => { pointer = { x: e.clientX, y: e.clientY, at: win.performance.now() }; };
+  const onLeave = () => { pointer = null; };
+  if (scatter) {
+    win.addEventListener('pointermove', onMove, { passive: true });
+    doc.addEventListener('pointerleave', onLeave, { passive: true });
+  }
+  const stopListening = () => {
+    win.removeEventListener('resize', onResize);
+    win.removeEventListener('pointermove', onMove);
+    doc.removeEventListener('pointerleave', onLeave);
+  };
 
   return new Promise(resolve => {
     let last = win.performance.now();
     const frame = now => {
       const dt = (now - last) / 1000;
       last = now;
+      swarm.pointer = pointer && now - pointer.at < POINTER_QUIET_MS ? pointer : null;
       swarm.update(dt);
       lctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       lctx.clearRect(0, 0, w, h);
@@ -46,8 +61,10 @@ export function releaseSwarm({ species, count, speed = 1, weights, devicePxPerMm
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       compositeWithShadow(ctx, layer, dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      swarm.drawGlow(ctx);
       if (swarm.done) {
-        win.removeEventListener('resize', onResize);
+        stopListening();
         host.remove();
         resolve(swarm.bugs.length);
       } else {

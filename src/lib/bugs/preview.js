@@ -1,4 +1,5 @@
 import { createBug, advanceGait } from './engine.js';
+import { updateFlash } from './species/firefly.js';
 
 // Walking in place with nothing passing by makes a natural pace look hurried, so specimens stroll.
 export const PREVIEW_PACE = 0.2;    // fraction of the species' slowest natural speed (about 1.3 steps a second)
@@ -20,9 +21,20 @@ export function drawPreview(ctx, bug, dt, w, h) {
   bug.speed = bug.cruise;
   bug.moving = 1;
   advanceGait(bug, bug.speed * dt, 0, dt);
+  if (bug.species.flash) { bug.sex = 'male'; updateFlash(bug, dt, []); }   // a specimen shows its kind's flash pattern
   Object.assign(bug, { x: cx, y: h / 2, heading: 0, light: { x: -0.45, y: -0.65 } });
   if (bug.trail) bug.trail.length = 0;
   Object.assign(bug, { size: view, stridePx: realStride * view / real });
   bug.species.draw(ctx, bug);
+  bug.previewPose = { x: bug.x, y: bug.y, size: view };
   Object.assign(bug, { size: real, stridePx: realStride });
+}
+
+// A specimen's glow (fireflies), drawn after the shadowed body layer, in the pose drawPreview last drew.
+export function drawPreviewGlow(ctx, bug) {
+  if (!bug.species.drawGlow || !bug.previewPose) return;
+  const real = bug.size;
+  Object.assign(bug, bug.previewPose);
+  bug.species.drawGlow(ctx, bug);
+  bug.size = real;
 }

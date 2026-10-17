@@ -47,7 +47,7 @@ export function sampleTrail(trail, headX, headY, heading, spacing, n) {
 
 export default {
   id: 'centipede',
-  size: [70, 95],
+  size: [76.7, 88.3],
   previewSize: 115,
   previewShift: 0.5,   // body trails behind the head, so centre the whole length in the cell
   speed: [90, 170],

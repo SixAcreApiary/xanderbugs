@@ -1,25 +1,31 @@
 import { ANT_IDS } from './species/ant.js';
 import { BEE_IDS } from './species/honeybee.js';
 import { BUMBLE_IDS } from './species/bumblebee.js';
+import { FIREFLY_IDS } from './species/firefly.js';
 
 // "Life size": with a calibrated screen (pixels per millimetre), every bug is drawn at its real body length.
-// REAL_LENGTH_MM is a typical adult body length range (head to tail, no legs or antennae); DRAWN_LENGTH is how
+// REAL_LENGTH_MM is an adult body length range (head to tail, no legs or antennae); DRAWN_LENGTH is how
 // long each species' drawing is, head to tail, in body units (a bug's size is 100 units). Both together give the
 // size a bug needs to be drawn at to come out at its real length.
 const range = (ids, mm) => Object.fromEntries(ids.map(id => [id, mm]));
+// Typical adult length, give or take 7%: the bugs shown are adults or nearly so, not the full range from young to
+// old or across every population.
+const adult = mm => [Math.round(mm * 0.93 * 100) / 100, Math.round(mm * 1.07 * 100) / 100];
 export const REAL_LENGTH_MM = {
-  ant: [7, 13], fieldant: [4, 8], fireant: [2, 6], pavementant: [2.5, 3], odoroushouseant: [2.4, 3.3], argentineant: [2.2, 2.8], pharaohant: [1.5, 2],
-  cockroach: [35, 40],          // American cockroach
-  centipede: [30, 60],          // stone to small giant centipedes
-  spider: [6, 10],              // body only
-  silverfish: [12, 19], beetle: [10, 20], earwig: [12, 15], yellowjacket: [12, 15], stinkbug: [14, 17], bedbug: [4, 5],
-  housecentipede: [25, 35],     // body only; its legs are far longer
-  ...range(BEE_IDS, [12, 15]),  // workers; drones and queens keep their real proportions to workers
-  ...range(BUMBLE_IDS, [10, 17])
+  ant: adult(11), fieldant: adult(6.5), fireant: adult(4), pavementant: adult(2.8), odoroushouseant: adult(2.9), argentineant: adult(2.6), pharaohant: adult(1.8),
+  cockroach: adult(38),         // American cockroach
+  centipede: adult(45),
+  spider: adult(8),             // body only
+  silverfish: adult(15), beetle: adult(15), earwig: adult(14), yellowjacket: adult(13.5), stinkbug: adult(15.5), bedbug: adult(5),
+  housecentipede: adult(30),    // body only; its legs are far longer
+  ...range(BEE_IDS, adult(13.5)), // workers; drones and queens keep their real proportions to workers
+  ...range(BUMBLE_IDS, adult(15)),
+  bigdipperfirefly: adult(12), treetopfirefly: adult(17), southwestsyncfirefly: adult(6.5), loopyfivefirefly: adult(11.5), smokiessyncfirefly: adult(13)
 };
 export const DRAWN_LENGTH = {
   ...range(ANT_IDS, 94), cockroach: 101, centipede: 106.5, spider: 74, silverfish: 102, beetle: 102, earwig: 106.5,
-  yellowjacket: 93.5, stinkbug: 93, bedbug: 89, housecentipede: 96.5, ...range(BEE_IDS, 79), ...range(BUMBLE_IDS, 82)
+  yellowjacket: 93.5, stinkbug: 93, bedbug: 89, housecentipede: 96.5, ...range(BEE_IDS, 79), ...range(BUMBLE_IDS, 82),
+  ...range(FIREFLY_IDS, 80.5)
 };
 
 // How much to scale a bug (size, pace and stride) so it comes out at life size at pxPerMm CSS pixels per mm. A bug

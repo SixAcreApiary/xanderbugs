@@ -15,6 +15,7 @@ export function isValidMessage(m) {
       return isIdList(m.species, SPECIES) && m.species.length > 0 && isInt(m.count, 1, LIMITS.perSwarm.max)
         && (m.speed === undefined || (typeof m.speed === 'number' && m.speed >= LIMITS.speed.min && m.speed <= LIMITS.speed.max))
         && (m.weights === undefined || isWeights(m.weights))
+        && (m.scatter === undefined || typeof m.scatter === 'boolean')
         && (m.devicePxPerMm === undefined || (typeof m.devicePxPerMm === 'number' && m.devicePxPerMm >= LIMITS.devicePxPerMm.min && m.devicePxPerMm <= LIMITS.devicePxPerMm.max));
     case 'sw:trigger':
       return m.kind === 'bugs' && (m.species === undefined || SPECIES.has(m.species));

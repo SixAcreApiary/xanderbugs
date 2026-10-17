@@ -10,7 +10,7 @@ const LEGS = [
 
 export default {
   id: 'cockroach',
-  size: [42, 56],
+  size: [45.6, 52.4],
   previewSize: 64,
   // Legs attach only to the thorax (pronotum and wing bases); the test suite checks every hip lies within it.
   anatomy: { legSection: [-6, 42], hips: LEGS.map(l => l.x) },
