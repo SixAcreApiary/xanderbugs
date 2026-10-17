@@ -45,7 +45,8 @@ function setAll(scope, on) {
   collectAndSave();
 }
 
-// Bugs we have several kinds of are grouped under a heading, each group with its own All on / All off.
+// Bugs we have several kinds of are grouped under a heading, each group with its own All on / All off. Groups,
+// and the bugs within each, are in alphabetical order.
 function renderSpecies() {
   const groups = new Map([[OTHER_GROUP, []]]);
   for (const s of BUG_SPECIES) {
@@ -53,8 +54,10 @@ function renderSpecies() {
     if (!groups.has(g)) groups.set(g, []);
     groups.get(g).push(s);
   }
-  $('species').replaceChildren(...[...groups].map(([name, list]) => {
-    const grid = el('div', { className: 'specimens' }, list.map(specimenCell));
+  const byName = (a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' });
+  const sorted = [...groups].sort(([a], [b]) => byName(a, b));
+  $('species').replaceChildren(...sorted.map(([name, list]) => {
+    const grid = el('div', { className: 'specimens' }, [...list].sort((a, b) => byName(a.label, b.label)).map(specimenCell));
     const on = el('button', { type: 'button', className: 'quiet', textContent: 'All on' });
     const off = el('button', { type: 'button', className: 'quiet', textContent: 'All off' });
     on.setAttribute('aria-label', `All ${name.toLowerCase()} on`);

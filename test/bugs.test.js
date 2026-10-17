@@ -7,6 +7,7 @@ import { seeded, mockCanvas } from './helpers/mocks.js';
 import * as BEE_MODULE from '../src/lib/bugs/species/honeybee.js';
 import { ANT_IDS, ANT_BREEDS } from '../src/lib/bugs/species/ant.js';
 import { BUMBLE_IDS, BUMBLE_BREEDS } from '../src/lib/bugs/species/bumblebee.js';
+import { SPIDER_IDS } from '../src/lib/bugs/species/spider.js';
 
 // Front, middle and hind feet on both sides, in tripod timing.
 const FEET = [-1, 1].flatMap(side => [[45, 30, 0], [0, 40, 0.5], [-40, 35, 0]].map(([x, y, o]) =>
@@ -254,7 +255,7 @@ test('legs attach only to the thorax (cephalothorax for spiders, trunk for house
     if (id === 'centipede') continue;   // one pair per trunk segment; checked by its own renderer
     assert.ok(sp.anatomy, `${id} declares its leg-bearing section`);
     const { legSection: [lo, hi], hips } = sp.anatomy;
-    assert.equal(hips.length, { spider: 4, housecentipede: 15 }[id] ?? 3, `${id} leg pairs`);
+    assert.equal(hips.length, SPIDER_IDS.includes(id) ? 4 : id === 'housecentipede' ? 15 : 3, `${id} leg pairs`);
     for (const h of hips) assert.ok(h >= lo && h <= hi, `${id} hip at ${h} is outside ${lo}..${hi}`);
     const ordered = id === 'silverfish' ? hips.every((h, i) => !i || h > hips[i - 1]) : hips.every((h, i) => !i || h < hips[i - 1]);
     assert.ok(ordered, `${id} hips run front to back`);
@@ -1946,4 +1947,35 @@ test('each firefly species is drawn with its own markings', async () => {
   assert.equal(by('smokiessyncfirefly').mark, 'rect', 'Smokies synchronous: a dark rectangle on a pale shield');
   const { ctx } = mockCanvas();
   for (const b of FIREFLY_BREEDS) SPECIES[b.id].draw(ctx, createBug(b.id, { width: 800, height: 600, rng: seeded(1) }));
+});
+
+test('spiders: twelve common kinds in their own group, each looking and moving like itself', async () => {
+  const { SPIDER_IDS, SPIDER_BREEDS } = await import('../src/lib/bugs/species/spider.js');
+  assert.equal(SPIDER_IDS.length, 12);
+  assert.equal(SPIDER_IDS[0], 'spider', 'the original spider id is kept (wolf spider)');
+  for (const id of SPIDER_IDS) assert.ok(BUG_SPECIES.some(s => s.id === id && s.group === 'Spiders'), `${id} listed under Spiders`);
+  const looks = SPIDER_BREEDS.map(b => JSON.stringify({ body: b.body, abdomen: b.abdomen, carapace: b.carapace, legLen: b.legLen, eyes: b.eyes }));
+  assert.equal(new Set(looks).size, looks.length, 'no two spiders look alike');
+  const by = id => SPIDER_BREEDS.find(b => b.id === id);
+  assert.ok(by('cellarspider').legLen > 2.5, 'cellar spider: very long legs');
+  assert.ok(by('boldjumper').eyes === 'jumper' && by('zebrajumper').eyes === 'jumper', 'jumping spiders: big front eyes');
+  assert.ok(SPECIES.boldjumper.pace.dartRate > SPECIES.spider.pace.dartRate, 'jumping spiders hop more');
+  assert.equal(by('brownrecluse').carapace, 'violin');
+  assert.ok(by('crabspider').crab, 'crab spider holds its front legs out');
+  // Sizes follow each kind's real body length, at the same scale as everything else.
+  const { REAL_LENGTH_MM, DRAWN_LENGTH } = await import('../src/lib/bugs/lifesize.js');
+  const pxPerMm = id => ((SPECIES[id].size[0] + SPECIES[id].size[1]) / 2) * DRAWN_LENGTH[id] / 100 / ((REAL_LENGTH_MM[id][0] + REAL_LENGTH_MM[id][1]) / 2);
+  for (const id of SPIDER_IDS) assert.ok(Math.abs(pxPerMm(id) - 2.8) < 0.1, `${id} drawn at ${pxPerMm(id).toFixed(2)} px per mm`);
+  const { ctx } = mockCanvas();
+  for (const id of SPIDER_IDS) SPECIES[id].draw(ctx, createBug(id, { width: 800, height: 600, rng: seeded(1) }));
+});
+
+test('every spider counts as a spider to predators, and the crab spider is a bee ambusher', async () => {
+  const { danger } = await import('../src/lib/bugs/ecology.js');
+  const { SPIDER_IDS } = await import('../src/lib/bugs/species/spider.js');
+  for (const id of SPIDER_IDS) {
+    assert.ok(danger({ species: SPECIES.yellowjacket }, { species: SPECIES[id] }) > 0, `yellowjackets ignore ${id}`);
+    assert.ok(danger({ species: SPECIES[id] }, { species: SPECIES.silverfish }) > 0, `${id} doesn't hunt silverfish`);
+  }
+  assert.ok(danger({ species: SPECIES.crabspider }, { species: SPECIES.italianbee }) > danger({ species: SPECIES.spider }, { species: SPECIES.italianbee }));
 });

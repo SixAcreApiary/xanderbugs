@@ -2,9 +2,10 @@ import { BEE_IDS } from './species/honeybee.js';
 import { ANT_IDS } from './species/ant.js';
 import { BUMBLE_IDS } from './species/bumblebee.js';
 import { PHOTINUS_IDS } from './species/firefly.js';
+import { SPIDER_IDS, SPIDER_BREEDS } from './species/spider.js';
 
 const all = ids => w => Object.fromEntries(ids.map(id => [id, w]));
-const bees = all(BEE_IDS), ants = all(ANT_IDS), bumbles = all(BUMBLE_IDS);
+const bees = all(BEE_IDS), ants = all(ANT_IDS), bumbles = all(BUMBLE_IDS), spiders = all(SPIDER_IDS);
 
 // Who hunts whom, roughly as in nature. PREDATION[predator][prey] is how dangerous the predator is to that
 // prey (0..1): it sets how hard the prey flees and how keenly the predator stalks it.
@@ -15,13 +16,16 @@ const bees = all(BEE_IDS), ants = all(ANT_IDS), bumbles = all(BUMBLE_IDS);
 //  - Ants and ground beetles overwhelm small prey such as bed bugs and silverfish.
 //  - Yellowjackets are notorious honey bee hunters; crab and orb spiders also take bees, bumble bees included.
 //  - Photuris fireflies (the loopy five) are "femme fatales" that lure and eat Photinus fireflies.
+//  - Every kind of spider counts as a spider, as hunter and as prey; the goldenrod crab spider is a specialist bee
+//    ambusher.
 //  - Every kind of ant counts as an ant (prey for the same hunters, and a nibbler of small prey itself).
 // Stink bugs are left alone: nobody hunts them, and their smell makes everyone keep a wider berth.
 export const PREDATION = {
-  housecentipede: { silverfish: 1, bedbug: 1, cockroach: 0.8, spider: 0.7, earwig: 0.6, ...ants(0.5) },
-  centipede: { cockroach: 0.9, silverfish: 0.9, earwig: 0.7, spider: 0.6, bedbug: 0.6, beetle: 0.4, ...ants(0.4) },
-  spider: { silverfish: 0.8, bedbug: 0.7, earwig: 0.5, cockroach: 0.4, ...ants(0.3), ...bees(0.4), ...bumbles(0.3) },
-  yellowjacket: { spider: 0.8, bedbug: 0.3, silverfish: 0.3, ...bees(0.9), ...bumbles(0.25) },
+  housecentipede: { silverfish: 1, bedbug: 1, cockroach: 0.8, ...spiders(0.7), earwig: 0.6, ...ants(0.5) },
+  centipede: { cockroach: 0.9, silverfish: 0.9, earwig: 0.7, ...spiders(0.6), bedbug: 0.6, beetle: 0.4, ...ants(0.4) },
+  ...Object.fromEntries(SPIDER_IDS.map(id => [id, { silverfish: 0.8, bedbug: 0.7, earwig: 0.5, cockroach: 0.4, ...ants(0.3), ...bees(0.4), ...bumbles(0.3) }])),
+  crabspider: { silverfish: 0.8, bedbug: 0.7, earwig: 0.5, cockroach: 0.4, ...ants(0.3), ...bees(0.7), ...bumbles(0.6) },
+  yellowjacket: { ...spiders(0.8), bedbug: 0.3, silverfish: 0.3, ...bees(0.9), ...bumbles(0.25) },
   ...Object.fromEntries(ANT_IDS.map(id => [id, { bedbug: 0.4, silverfish: 0.3 }])),
   beetle: { ...ants(0.3), silverfish: 0.3, bedbug: 0.3 },
   loopyfivefirefly: all(PHOTINUS_IDS)(0.6)
@@ -31,7 +35,8 @@ export const PREDATION = {
 export const REPELLENT = { stinkbug: 0.6 };
 
 // How far a predator looms, as a multiple of its body length: long legs make it noticeable from further away.
-export const LOOM = { housecentipede: 2, spider: 1.4 };
+// Spiders loom larger the longer their legs (the cellar spider's reach far beyond its tiny body).
+export const LOOM = { housecentipede: 2, ...Object.fromEntries(SPIDER_BREEDS.map(b => [b.id, 1 + 0.4 * (b.legLen ?? 1)])) };
 
 export function danger(predator, prey) {
   return PREDATION[predator.species.id]?.[prey.species.id] ?? 0;

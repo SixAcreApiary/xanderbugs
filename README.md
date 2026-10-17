@@ -2,7 +2,7 @@
 
 If you like this extension, consider [buying me a coffee](https://buymeacoffee.com/xanderphillips).
 
-A Chrome extension (Manifest V3). While you browse, it sends procedurally drawn bugs (seven kinds of ant, cockroaches, centipedes, spiders, silverfish, beetles, earwigs, yellowjackets, stink bugs, bedbugs, house centipedes, seven breeds of western honey bee, seven species of bumble bee and five flashing fireflies) scurrying across the page. Walking bugs give each other room and steer round one another, ants that meet head on sometimes stop face to face to touch antennae or follow each other's scent trails, prey bolt from predators, honey bees now and then perform a waggle dance, fireflies flash their species' real patterns (some in sync), and bugs scatter from the mouse pointer (optional).
+A Chrome extension (Manifest V3). While you browse, it sends procedurally drawn bugs (seven kinds of ant, twelve kinds of spider, cockroaches, centipedes, silverfish, beetles, earwigs, yellowjackets, stink bugs, bedbugs, house centipedes, seven breeds of western honey bee, seven species of bumble bee and five flashing fireflies) scurrying across the page. Walking bugs give each other room and steer round one another, ants that meet head on sometimes stop face to face to touch antennae or follow each other's scent trails, prey bolt from predators, honey bees now and then perform a waggle dance, fireflies flash their species' real patterns (some in sync), and bugs scatter from the mouse pointer (optional).
 
 Everything is configurable on the settings page: bug sightings per hour, bugs per sighting, crawl speed, which bugs can appear and how often each one is picked, and sites where bugs should never appear.
 

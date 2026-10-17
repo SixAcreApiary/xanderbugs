@@ -157,7 +157,13 @@ test('options page groups ants, honey bees and bumble bees, with All on / All of
   await page.goto(`chrome-extension://${extId}/src/options/options.html`);
   await page.locator('#species input[value=ant]').waitFor();
   const heads = await page.locator('#species .species-group h3').allTextContents();
-  for (const g of ['Other bugs', 'Ants', 'Honey bees', 'Bumble bees']) assert.ok(heads.includes(g), `${g} heading`);
+  for (const g of ['Other bugs', 'Ants', 'Honey bees', 'Bumble bees', 'Fireflies', 'Spiders']) assert.ok(heads.includes(g), `${g} heading`);
+  const abc = list => [...list].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  assert.deepEqual(heads, abc(heads), 'groups in alphabetical order');
+  for (const g of await page.locator('#species .species-group').all()) {
+    const names = await g.locator('.tag b').allTextContents();
+    assert.deepEqual(names, abc(names), 'bugs in alphabetical order within each group');
+  }
   const stored = () => sw.evaluate(async () => (await chrome.storage.local.get('settings')).settings.bugs.species);
   const all = await page.locator('#species input[type=checkbox]').count();
   await page.click('#all-off');
