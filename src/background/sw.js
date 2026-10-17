@@ -38,7 +38,7 @@ async function sendToActiveTab(msg) {
 async function releaseBugs(s, onlySpecies) {
   const species = onlySpecies ? [onlySpecies] : s.bugs.species;
   if (!species.length) return { ok: false, error: 'no-species' };
-  return sendToActiveTab({ type: 'spawn', species, count: randInt(s.bugs.perSwarmMin, s.bugs.perSwarmMax), speed: s.bugs.speed, weights: s.bugs.weights,
+  return sendToActiveTab({ type: 'spawn', species, count: randInt(s.bugs.perSwarmMin, s.bugs.perSwarmMax), speed: s.bugs.speed, weights: s.bugs.weights, scatter: s.bugs.scatter,
     ...(s.bugs.lifeSize && s.bugs.devicePxPerMm ? { devicePxPerMm: s.bugs.devicePxPerMm } : {}) });
 }
 

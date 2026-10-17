@@ -6,7 +6,7 @@ const THORAX_LEGS = [0.13, 0.21, 0.29];
 
 export default {
   id: 'silverfish',
-  size: [26, 34],
+  size: [27.9, 32.1],
   previewSize: 44,
   // Legs attach only to the three thoracic segments (as fractions of body length); the test suite checks every hip lies within it.
   anatomy: { legSection: [0.1, 0.32], hips: THORAX_LEGS },

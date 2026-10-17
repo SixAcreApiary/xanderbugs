@@ -49,3 +49,9 @@ test('spawn messages may carry a screen calibration within range', () => {
   assert.ok(isValidMessage({ ...base, devicePxPerMm: 5 }));
   for (const bad of [0, 100, '5', null]) assert.ok(!isValidMessage({ ...base, devicePxPerMm: bad }), `${bad} rejected`);
 });
+
+test('spawn messages may say whether bugs scatter from the pointer', () => {
+  const base = { target: 'content', type: 'spawn', species: ['ant'], count: 1 };
+  assert.ok(isValidMessage({ ...base, scatter: true }));
+  assert.ok(!isValidMessage({ ...base, scatter: 'yes' }));
+});

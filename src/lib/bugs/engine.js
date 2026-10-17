@@ -12,11 +12,12 @@ import bedbug from './species/bedbug.js';
 import housecentipede from './species/housecentipede.js';
 import { BEES } from './species/honeybee.js';
 import { BUMBLES } from './species/bumblebee.js';
+import { FIREFLIES, updateFlash } from './species/firefly.js';
 import { sampleTrail } from './species/centipede.js';
 import { danger, REPELLENT, LOOM } from './ecology.js';
 import { lifeScale } from './lifesize.js';
 
-export const SPECIES = Object.fromEntries([...ANTS, cockroach, centipede, spider, silverfish, beetle, earwig, yellowjacket, stinkbug, bedbug, housecentipede, ...BEES, ...BUMBLES].map(s => [s.id, s]));
+export const SPECIES = Object.fromEntries([...ANTS, cockroach, centipede, spider, silverfish, beetle, earwig, yellowjacket, stinkbug, bedbug, housecentipede, ...BEES, ...BUMBLES, ...FIREFLIES].map(s => [s.id, s]));
 
 const MAX_LIFETIME_S = 45;
 const NEVER_ENTERED_S = 12;
@@ -191,6 +192,7 @@ export function createBug(speciesId, { width, height, rng = Math.random, delay =
     rng
   };
   bug.stridePx = strideLength(bug);   // travel per full leg cycle, used to keep planted feet still
+  if (sp.flash) bug.sex = rng() < sp.females ? 'female' : 'male';
   return bug;
 }
 
@@ -238,7 +240,7 @@ export function paceFactor(b, dt) {
   return drift * (b.dartTime > 0 ? v.dart[0] : 1);
 }
 
-export function stepBug(b, dt, width, height, others = []) {
+export function stepBug(b, dt, width, height, others = [], pointer = null) {
   if (b.done) return;
   if (b.delay > 0) {
     // Wait to set off until nobody is standing on the spot.
@@ -276,7 +278,7 @@ export function stepBug(b, dt, width, height, others = []) {
     b.stateTime = between(rng, b.caste === 'queen' ? QUEEN_REST.time : sp.pauseTime);
   }
 
-  sensePredators(b, others, dt);
+  sensePredators(b, others, dt, pointer);
   if (b.alarm > 0.15) {                     // startled: no resting, greeting, tending or dawdling along a trail
     b.paused = false;
     if (b.meet) endMeeting(b);
@@ -285,6 +287,10 @@ export function stepBug(b, dt, width, height, others = []) {
   }
   if (!urgent) stalk(b, others, dt); else b.hunt = null;
   if (sp.scent) followScent(b, others, dt, urgent);
+  if (sp.flash) {
+    updateFlash(b, dt, others);
+    if (b.court && ((b.court.time -= dt) <= 0 || b.court.female.done || urgent || b.alarm > 0.15)) b.court = null;
+  }
   if (sp.castes && !b.caste) attendQueen(b, others, dt, urgent);
   if (sp.dances && !b.caste && !b.attend) waggleDance(b, dt, urgent);
   if (b.caste === 'queen') queenRivalry(b, others, dt, urgent);
@@ -323,6 +329,7 @@ export function stepBug(b, dt, width, height, others = []) {
   if (b.veer > 0) { b.veer -= dt; desired += 1.2; }
   if (avoid) desired = Math.atan2(Math.sin(desired) + avoid.y, Math.cos(desired) + avoid.x);
   if (b.dance) desired = b.dance.heading;
+  if (b.court) desired = Math.atan2(b.court.female.y - b.y, b.court.female.x - b.x);   // a male firefly heads for the female who answered
   if (b.loosen) desired = Math.atan2(b.y - b.loosen.from.y, b.x - b.loosen.from.x);   // away from whoever it's stuck to
   if (b.duel) desired = Math.atan2(b.duel.rival.y - b.y, b.duel.rival.x - b.x);
   if (b.alarm > 0) {                        // running from a predator outweighs everything else
@@ -349,6 +356,7 @@ export function stepBug(b, dt, width, height, others = []) {
     target *= 1 + (FOLLOW_CATCH_UP - 1) * b.follow.strength * Math.min(1, Math.max(0, (gap - 1.5) / 3));
   }
   if (b.dance) target = b.cruise * b.dance.pace;
+  if (b.court) target = Math.min(target, b.cruise * Math.max(0, Math.min(1, (Math.hypot(b.court.female.x - b.x, b.court.female.y - b.y) - b.size) / b.size)));
   if (b.duel) {                             // close in, then grapple: lunge and pull back
     const r = b.duel.rival, gap = Math.hypot(r.x - b.x, r.y - b.y) - (b.size + r.size) * 0.45;
     target = gap > b.size * 0.2 ? b.cruise * 0.7 : b.cruise * 0.45 * Math.sin(b.t * 7 + b.noise[1]);
@@ -744,8 +752,22 @@ export function waggleDance(b, dt, urgent) {
 }
 
 // Raises b's alarm when a predator is near and points b.fleeDir away from the danger.
-export function sensePredators(b, others, dt) {
+// The mouse pointer, when the "scatter" option is on and it has moved lately, is a looming threat to every bug.
+const POINTER_RANGE = 70;        // px, plus a little more for bigger bugs
+const POINTER_FEAR = 0.9;
+
+export function sensePredators(b, others, dt, pointer = null) {
   let x = 0, y = 0, level = 0;
+  if (b.entered && pointer) {
+    const dx = b.x - pointer.x, dy = b.y - pointer.y, d = Math.hypot(dx, dy) || 0.01;
+    const range = (POINTER_RANGE + b.size * 1.2) * (b.species.nerves ?? 1);
+    if (d < range) {
+      const fear = POINTER_FEAR * (1 - d / range) ** 0.5;
+      x += (dx / d) * fear;
+      y += (dy / d) * fear;
+      level = fear;
+    }
+  }
   if (b.entered) {
     for (const o of others) {
       const w = grounded(b, o) ? danger(o, b) : 0;
@@ -898,6 +920,7 @@ export class Swarm {
     this.height = height;
     this.crowd = crowd;
     this.lifePxPerMm = lifePxPerMm;
+    this.pointer = null;   // { x, y } while a moving mouse pointer should scatter the bugs
     this.bugs = [];
     for (let i = 0; i < count; i++) {
       const id = pickWeighted(species, weights, rng);
@@ -925,12 +948,17 @@ export class Swarm {
     const step = Math.min(dt, 0.05);
     const others = [];
     for (const s of this.crowd) others.push(...s.bugs);
-    for (const b of this.bugs) stepBug(b, step, this.width, this.height, others);
+    for (const b of this.bugs) stepBug(b, step, this.width, this.height, others, this.pointer);
     if (this.done) this.crowd.delete(this);
   }
 
   draw(ctx) {
     for (const b of this.bugs) if (!b.done && b.delay <= 0) b.species.draw(ctx, b);
+  }
+
+  // Light that bugs give off (fireflies' flashes), drawn over everything else in a pass of its own.
+  drawGlow(ctx) {
+    for (const b of this.bugs) if (!b.done && b.delay <= 0) b.species.drawGlow?.(ctx, b);
   }
 
   get done() {

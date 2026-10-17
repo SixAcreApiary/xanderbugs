@@ -17,7 +17,7 @@ async function handle(msg) {
   if (document.visibilityState !== 'visible') return { ok: false, error: 'hidden' };
   if (activeSwarms >= MAX_ACTIVE_SWARMS) return { ok: false, error: 'busy' };
   activeSwarms++;
-  releaseSwarm({ species: msg.species, count: msg.count, speed: msg.speed ?? 1, weights: msg.weights, devicePxPerMm: msg.devicePxPerMm }).finally(() => { activeSwarms--; });
+  releaseSwarm({ species: msg.species, count: msg.count, speed: msg.speed ?? 1, weights: msg.weights, devicePxPerMm: msg.devicePxPerMm, scatter: msg.scatter === true }).finally(() => { activeSwarms--; });
   return { ok: true, spawned: msg.count };
 }
 

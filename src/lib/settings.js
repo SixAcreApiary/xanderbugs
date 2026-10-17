@@ -31,7 +31,12 @@ export const BUG_SPECIES = [
   { id: 'carderbumblebee', label: 'Common carder', group: 'Bumble bees' },
   { id: 'gardenbumblebee', label: 'Garden', group: 'Bumble bees' },
   { id: 'americanbumblebee', label: 'American', group: 'Bumble bees' },
-  { id: 'yellowfacedbumblebee', label: 'Yellow-faced', group: 'Bumble bees' }
+  { id: 'yellowfacedbumblebee', label: 'Yellow-faced', group: 'Bumble bees' },
+  { id: 'bigdipperfirefly', label: 'Big Dipper', group: 'Fireflies' },
+  { id: 'treetopfirefly', label: 'Spring tree-top flasher', group: 'Fireflies' },
+  { id: 'southwestsyncfirefly', label: 'Southwest synchronous', group: 'Fireflies' },
+  { id: 'loopyfivefirefly', label: 'Loopy five', group: 'Fireflies' },
+  { id: 'smokiessyncfirefly', label: 'Smokies synchronous', group: 'Fireflies' }
 ];
 export const OTHER_GROUP = 'Other bugs';
 
@@ -48,7 +53,7 @@ export const LIMITS = {
 export const DEFAULTS = Object.freeze({
   enabled: true,
   bugs: { perHourMin: 2, perHourMax: 6, perSwarmMin: 1, perSwarmMax: 3, speed: 1, species: BUG_SPECIES.map(s => s.id),
-    weights: Object.fromEntries(BUG_SPECIES.map(s => [s.id, LIMITS.weight.default])), lifeSize: false, devicePxPerMm: null },
+    weights: Object.fromEntries(BUG_SPECIES.map(s => [s.id, LIMITS.weight.default])), lifeSize: false, devicePxPerMm: null, scatter: true },
   blocklist: []
 });
 
@@ -118,7 +123,9 @@ export function validate(raw) {
       weights: Object.fromEntries(BUG_SPECIES.map(x => [x.id, clampInt(w[x.id], LIMITS.weight.min, LIMITS.weight.max, LIMITS.weight.default)])),
       // Life size needs a credit-card calibration of the screen; without one it stays off.
       devicePxPerMm: calibration(b.devicePxPerMm),
-      lifeSize: bool(b.lifeSize, d.bugs.lifeSize) && calibration(b.devicePxPerMm) !== null
+      lifeSize: bool(b.lifeSize, d.bugs.lifeSize) && calibration(b.devicePxPerMm) !== null,
+      // Bugs run from the mouse pointer.
+      scatter: bool(b.scatter, d.bugs.scatter)
     },
     blocklist
   };

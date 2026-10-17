@@ -588,11 +588,11 @@ test('in a crowd, walking bugs turn along arcs instead of pivoting; only stopped
   const sw = new Swarm({ species: ids, count: 60, width: 1600, height: 900, rng: seeded(31) });
   let walkingTurn = 0, tight = 0;
   for (let f = 0; f < 60 * 20; f++) {
-    const prev = sw.bugs.map(b => ({ h: b.heading, x: b.x, y: b.y, still: b.paused || b.meet || b.veer > 0 }));
+    const prev = sw.bugs.map(b => ({ h: b.heading, x: b.x, y: b.y, still: b.paused || b.meet || b.attend || b.veer > 0 }));   // greeting or tending: squaring up
     sw.update(1 / 60);
     sw.bugs.forEach((b, i) => {
       const p = prev[i];
-      if (b.done || b.delay > 0 || p.still || b.paused || b.hemmed > 0 || b.alarm > 0.15 || b.dance || b.loosen) return;   // held up, startled, dancing or buzzing loose: may turn tightly
+      if (b.done || b.delay > 0 || p.still || b.paused || b.hemmed > 0 || b.alarm > 0.15 || b.dance || b.loosen || b.attend) return;   // held up, startled, dancing or buzzing loose: may turn tightly
       const t = Math.abs(Math.atan2(Math.sin(b.heading - p.h), Math.cos(b.heading - p.h)));
       const d = Math.hypot(b.x - p.x, b.y - p.y);
       const minR = b.size * (b.species.trail ? 0.25 : 0.5);
@@ -1631,12 +1631,11 @@ test('ants greet and follow the trails of their own kind only', () => {
   assert.ok(!a.follow || a.follow.leader.species.id === a.species.id);
 });
 
-test('bumble bees: several species, round and furry, varied in size, with their own hair bands; no waggle dance', () => {
+test('bumble bees: several species, round and furry, with their own hair bands; no waggle dance', () => {
   assert.ok(BUMBLE_IDS.length >= 6);
   for (const id of BUMBLE_IDS) {
     assert.ok(BUG_SPECIES.some(s => s.id === id && s.group === 'Bumble bees'), `${id} listed under Bumble bees`);
     assert.ok(!SPECIES[id].dances && !SPECIES[id].castes, `${id} neither dances nor has honey bee castes`);
-    assert.ok(SPECIES[id].size[1] / SPECIES[id].size[0] > 1.3, 'bumble bee workers vary a lot in size');
     assert.ok(SPECIES[id].discR > 0.14, 'a broad, round body');
   }
   assert.equal(new Set(BUMBLE_BREEDS.map(b => b.face + b.thorax.join() + b.abdomen.join())).size, BUMBLE_BREEDS.length, 'each species has its own banding');
@@ -1783,4 +1782,168 @@ test('with every bug switched on, none stays stuck against another for long', as
     }
   }
   assert.ok(worst < 2, `a bug stayed stuck for ${worst.toFixed(1)}s`);
+});
+
+test('bugs scatter from a nearby mouse pointer, and ignore one far away', () => {
+  const near = createBug('cockroach', { width: 800, height: 600, rng: seeded(1) });
+  Object.assign(near, { x: 400, y: 300, heading: 0, entered: true });
+  near.species = { ...near.species, pauseRate: 0 };
+  near.waypoints = [{ x: 780, y: 300 }, { x: 900, y: 300 }];
+  const start = Math.hypot(near.x - 420, near.y - 300);
+  for (let f = 0; f < 60; f++) stepBug(near, 1 / 60, 800, 600, [near], { x: 420, y: 300 });
+  assert.ok(near.alarm > 0.15, 'frightened');
+  assert.ok(Math.hypot(near.x - 420, near.y - 300) > start * 2, 'ran away from the pointer');
+  const far = createBug('cockroach', { width: 800, height: 600, rng: seeded(1) });
+  Object.assign(far, { x: 100, y: 100, entered: true });
+  stepBug(far, 1 / 60, 800, 600, [far], { x: 700, y: 500 });
+  assert.equal(far.alarm, 0);
+});
+
+// A minimal page for the overlay: records listeners, hands out mock canvases, runs frames on demand.
+function fakePage(now) {
+  const listeners = { win: {}, doc: {} };
+  const el = () => ({ style: {}, setAttribute() {}, attachShadow: () => ({ appendChild() {} }), getContext: () => mockCanvas().ctx, remove() {} });
+  const frames = [];
+  const win = {
+    innerWidth: 800, innerHeight: 600, devicePixelRatio: 1, performance: { now: () => now.t },
+    addEventListener: (k, f) => { listeners.win[k] = f; }, removeEventListener: k => { delete listeners.win[k]; },
+    requestAnimationFrame: f => frames.push(f)
+  };
+  const doc = {
+    createElement: el, body: { appendChild() {} },
+    addEventListener: (k, f) => { listeners.doc[k] = f; }, removeEventListener: k => { delete listeners.doc[k]; }
+  };
+  return { win, doc, listeners, frames };
+}
+
+test('pointer scatter: the page listens only when the option is on, a still pointer stops scaring, and listeners are removed', async () => {
+  const { releaseSwarm, POINTER_QUIET_MS } = await import('../src/lib/bugs/overlay.js');
+  const now = { t: 0 };
+  const off = fakePage(now);
+  releaseSwarm({ species: ['cockroach'], count: 1, doc: off.doc, win: off.win, rng: seeded(1) });
+  assert.equal(off.listeners.win.pointermove, undefined, 'option off: the pointer is never watched');
+  const on = fakePage(now);
+  const done = releaseSwarm({ species: ['cockroach'], count: 1, scatter: true, doc: on.doc, win: on.win, rng: seeded(1) });
+  assert.equal(typeof on.listeners.win.pointermove, 'function');
+  on.listeners.win.pointermove({ clientX: 10, clientY: 20 });
+  const run = () => { const f = on.frames.shift(); now.t += 16; f?.(now.t); };
+  run();
+  now.t += POINTER_QUIET_MS + 100;
+  run();
+  // Let the swarm finish and check the listeners are gone.
+  for (let i = 0; i < 60 * 120 && on.frames.length; i++) run();
+  await done;
+  assert.equal(on.listeners.win.pointermove, undefined, 'stops listening when the bugs are gone');
+});
+
+// Runs a lone male firefly's flashing for a while; returns the pulses (start times) grouped into trains.
+async function flashLog(id, seconds = 60, sameBurst = 0.9) {   // pulses closer than sameBurst s belong to one burst
+  const { updateFlash } = await import('../src/lib/bugs/species/firefly.js');
+  const b = createBug(id, { width: 800, height: 600, rng: seeded(7) });
+  b.sex = 'male';
+  const pulses = [];
+  let lit = false;
+  for (let t = 0; t < seconds; t += 1 / 120) {
+    updateFlash(b, 1 / 120, [b]);
+    if (b.glow > 0.4 && !lit) pulses.push(t);
+    lit = b.glow > 0.4;
+  }
+  const trains = [];
+  for (const p of pulses) {
+    const last = trains.at(-1);
+    if (last && p - last.at(-1) < sameBurst) last.push(p); else trains.push([p]);
+  }
+  return trains.slice(0, -1);   // the last burst may be cut off when the run ends
+}
+const gaps = trains => trains.slice(1).map((tr, i) => tr[0] - trains[i][0]);
+
+test('fireflies flash their own species\' patterns', async () => {
+  const dipper = await flashLog('bigdipperfirefly');
+  assert.ok(dipper.every(t => t.length === 1), 'Big Dipper: one long flash at a time');
+  assert.ok(gaps(dipper).every(g => g >= 4.4 && g <= 7.2), `Big Dipper flashes every 4-7 s (${gaps(dipper).map(g => g.toFixed(1))})`);
+  const treetop = await flashLog('treetopfirefly');
+  assert.ok(treetop.every(t => t.length === 1) && gaps(treetop).every(g => g >= 1.9 && g <= 3.1), 'tree-top flasher: a short flash every 2-3 s');
+  const sw = await flashLog('southwestsyncfirefly');
+  const lengths = sw.map(t => t.length);
+  assert.ok(lengths.every(n => n >= 2 && n <= 5) && lengths.filter(n => n === 3).length > lengths.length / 2, `Southwest synchronous: mostly triplets (${lengths})`);
+  assert.ok(sw.every(t => t.at(-1) - t[0] < 2), 'each burst over in about a second');
+  const loopy = await flashLog('loopyfivefirefly', 120, 3);   // its pulses loop out over ~3 s
+  assert.ok(loopy.every(t => t.length >= 3 && t.length <= 7), `loopy five: 4-7 pulses (${loopy.map(t => t.length)})`);
+  assert.ok(gaps(loopy).every(g => g > 12), 'with more than 10 s of darkness between');
+  const smokies = await flashLog('smokiessyncfirefly');
+  assert.ok(smokies.every(t => t.length >= 5 && t.length <= 8), `Smokies synchronous: bursts of 5-8 (${smokies.map(t => t.length)})`);
+});
+
+test('synchronous fireflies fall into step; female fireflies only answer males of their kind', async () => {
+  const sw = new Swarm({ species: ['smokiessyncfirefly'], count: 8, width: 600, height: 400, rng: seeded(3) });
+  const males = sw.bugs.filter(b => b.sex === 'male');
+  assert.ok(males.length >= 4);
+  for (const b of sw.bugs) Object.assign(b, { delay: 0, entered: true, x: 200 + Math.random() * 200, y: 150 + Math.random() * 100, paused: true, stateTime: 999 });
+  const starts = [];
+  for (let f = 0; f < 60 * 40; f++) {
+    for (const b of sw.bugs) b.stateTime = 999;
+    sw.update(1 / 60);
+    if (f > 60 * 30) for (const m of males) if (m.flash.train && m.flash.t < 1 / 60 + 1e-9) starts.push(f / 60);
+  }
+  starts.sort((a, b) => a - b);
+  const spread = Math.max(...starts.slice(0, males.length)) - starts[0];
+  assert.ok(spread < 0.3, `males start their bursts within ${spread.toFixed(2)} s of each other`);
+
+  const { updateFlash } = await import('../src/lib/bugs/species/firefly.js');
+  const female = createBug('bigdipperfirefly', { width: 800, height: 600, rng: seeded(4) });
+  female.sex = 'female';
+  let flashed = false;
+  for (let t = 0; t < 30; t += 1 / 60) { updateFlash(female, 1 / 60, [female]); if (female.glow > 0.4) flashed = true; }
+  assert.ok(!flashed, 'a female alone never flashes');
+  const male = createBug('bigdipperfirefly', { width: 800, height: 600, rng: seeded(5) });
+  Object.assign(male, { sex: 'male', x: female.x + 100, y: female.y });
+  male.flash = { next: 0.01, train: null, t: 0, answer: null };
+  let answeredAt = null;
+  for (let t = 0; t < 6; t += 1 / 60) {
+    updateFlash(male, 1 / 60, [male, female]);
+    updateFlash(female, 1 / 60, [male, female]);
+    if (answeredAt === null && female.glow > 0.4) answeredAt = t;
+  }
+  assert.ok(answeredAt !== null && answeredAt > 1.8 && answeredAt < 3.5, `the female answered ${answeredAt?.toFixed(2)} s after his flash`);
+  assert.equal(male.court?.female, female, 'and he heads for her');
+});
+
+test('firefly glow is drawn in its own pass, not in the shadowed body layer; Photuris hunts Photinus', async () => {
+  const { danger } = await import('../src/lib/bugs/ecology.js');
+  const { FIREFLY_IDS, PHOTINUS_IDS } = await import('../src/lib/bugs/species/firefly.js');
+  for (const id of FIREFLY_IDS) assert.ok(BUG_SPECIES.some(s => s.id === id && s.group === 'Fireflies'), `${id} listed under Fireflies`);
+  for (const id of PHOTINUS_IDS) assert.ok(danger({ species: SPECIES.loopyfivefirefly }, { species: SPECIES[id] }) > 0, `loopy five hunts ${id}`);
+  const b = createBug('bigdipperfirefly', { width: 800, height: 600, rng: seeded(6) });
+  b.glow = 1;
+  const body = mockCanvas(), glow = mockCanvas();
+  SPECIES.bigdipperfirefly.draw(body.ctx, b);
+  SPECIES.bigdipperfirefly.drawGlow(glow.ctx, b);
+  assert.ok(glow.calls.includes('arc') && glow.calls.includes('createRadialGradient'), 'glow pass draws a halo');
+  b.glow = 0;
+  const dark = mockCanvas();
+  SPECIES.bigdipperfirefly.drawGlow(dark.ctx, b);
+  assert.equal(dark.calls.length, 0, 'no glow while dark');
+});
+
+test('every bug shown is an adult or nearly so: sizes vary only a little within a species, on screen and at life size', async () => {
+  const { REAL_LENGTH_MM } = await import('../src/lib/bugs/lifesize.js');
+  for (const [id, sp] of Object.entries(SPECIES)) {
+    assert.ok(sp.size[1] / sp.size[0] <= 1.16, `${id} sizes ${sp.size} vary too much`);
+    const [lo, hi] = REAL_LENGTH_MM[id];
+    assert.ok(hi / lo <= 1.16, `${id} real length ${lo}-${hi} mm spans more than adult variation`);
+  }
+});
+
+test('each firefly species is drawn with its own markings', async () => {
+  const { FIREFLY_BREEDS } = await import('../src/lib/bugs/species/firefly.js');
+  const looks = FIREFLY_BREEDS.map(b => JSON.stringify(b.look));
+  assert.equal(new Set(looks).size, looks.length, 'no two species look alike');
+  const by = id => FIREFLY_BREEDS.find(b => b.id === id).look;
+  assert.equal(by('bigdipperfirefly').mark, 'spot', 'Big Dipper: a dark spot on a pink-red shield');
+  assert.ok(by('treetopfirefly').ridges, 'tree-top flasher: ridged wing covers');
+  assert.ok(by('southwestsyncfirefly').edgeW > by('bigdipperfirefly').edgeW, 'Southwest synchronous: broad pale edges');
+  assert.ok(by('loopyfivefirefly').stripes && by('loopyfivefirefly').legLength > 1, 'loopy five: faint stripes and long legs');
+  assert.equal(by('smokiessyncfirefly').mark, 'rect', 'Smokies synchronous: a dark rectangle on a pale shield');
+  const { ctx } = mockCanvas();
+  for (const b of FIREFLY_BREEDS) SPECIES[b.id].draw(ctx, createBug(b.id, { width: 800, height: 600, rng: seeded(1) }));
 });

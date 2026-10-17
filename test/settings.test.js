@@ -108,3 +108,9 @@ test('life size needs a valid screen calibration; without one it stays off', () 
   for (const bad of [0, -3, 500, 'x', NaN, {}]) assert.equal(validate({ bugs: { lifeSize: true, devicePxPerMm: bad } }).bugs.devicePxPerMm, null, `${bad} rejected`);
   assert.equal(validate({ bugs: { lifeSize: false, devicePxPerMm: 6 } }).bugs.devicePxPerMm, 6, 'a calibration is kept even with life size off');
 });
+
+test('pointer scatter is on by default and saved as a true/false switch', () => {
+  assert.equal(DEFAULTS.bugs.scatter, true);
+  assert.equal(validate({ bugs: { scatter: false } }).bugs.scatter, false);
+  assert.equal(validate({ bugs: { scatter: 'yes' } }).bugs.scatter, true, 'junk falls back to the default');
+});

@@ -18,7 +18,7 @@ const PALETTES = [
 
 export default {
   id: 'spider',
-  size: [26, 34],
+  size: [27.9, 32.1],
   previewSize: 44,
   // Legs attach only to the cephalothorax, never the abdomen; the test suite checks every hip lies within it.
   anatomy: { legSection: [-1, 29], hips: LEGS.map(l => l.hx) },

@@ -25,7 +25,7 @@ function bandedLine(ctx, pts, width, colors) {
 
 export default {
   id: 'stinkbug',
-  size: [46, 56],
+  size: [47.4, 54.6],
   previewSize: 74,
   // Legs attach only to the thorax (pronotum and scutellum base); the test suite checks every hip lies within it.
   anatomy: { legSection: [-10, 31], hips: LEGS.map(l => l.x) },

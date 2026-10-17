@@ -52,7 +52,7 @@ function makeBumble(br) {
   const colorAt = x => (x > THORAX.cx - THORAX.rx + 2 ? (x > THORAX.cx ? br.thorax[0] : br.thorax[1]) : abdomenAt(x));
   return {
     id: br.id,
-    size: [42, 62],        // workers range widely in size
+    size: [48.4, 55.6],        // adults, give or take a little
     previewSize: 54,
     // Legs attach only to the thorax; the test suite checks every hip lies within it.
     anatomy: { legSection: [THORAX.cx - THORAX.rx, THORAX.cx + THORAX.rx], hips: LEGS.map(l => l.x) },
