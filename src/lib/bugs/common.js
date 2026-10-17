@@ -175,9 +175,13 @@ export function insectGait(bug, leg, side) {
   return { offset: frac((leg === 1 ? 0.5 : 0) + right), duty: dutyFactor(bug) };   // alternating tripod
 }
 
-// Spider leg timing (leg 0..3 front to back): alternating tetrapod.
+// Spider leg timing (leg 0..3 front to back): alternating tetrapod, but the legs of a tetrapod don't lift in
+// lockstep. Each side steps in a back-to-front ripple (IV, then III... a little ahead of the leg in front), so
+// adjacent legs sit near, not exactly, half a cycle apart; the two sides stay half a cycle apart. Walking
+// spiders keep most feet down (duty factor ~0.6-0.7).
+export const SPIDER_RIPPLE = 0.07;
 export function tetrapodGait(bug, leg, side) {
-  return { offset: frac((leg % 2 ? 0.5 : 0) + (side > 0 ? 0.5 : 0)), duty: dutyFactor(bug) };
+  return { offset: frac((leg % 2 ? 0.5 : 0) + (side > 0 ? 0.5 : 0) + leg * SPIDER_RIPPLE), duty: dutyFactor(bug, 0.64) };
 }
 
 // Turning is modelled as the feet walking round the body centre; this is the lever (as a fraction of
@@ -204,7 +208,10 @@ export function strideDirection(bug, side, rest) {
 }
 
 // Where a walking foot is right now. Returns the foot point and how lifted it is (0 planted .. 1 apex).
-export function footPosition(bug, side, rest, offset, duty, maxTravel) {
+// With a hip given ({ x, y, bulge }), a swinging foot is carried round it (the leg pivots at the hip and keeps
+// its reach, stretching out by `bulge` of it mid-swing) rather than straight across, which would fold the leg
+// in towards the body; the leg's own lift is then left to the caller (see walkLeg3D).
+export function footPosition(bug, side, rest, offset, duty, maxTravel, hip = null) {
   const dir = strideDirection(bug, side, rest);
   const travel = Math.min(maxTravel / Math.max(1, Math.hypot(dir.x, dir.y)), duty * (bug.stridePx ?? 0) * (100 / bug.size));
   const phi = frac(legPhase(bug, side) / TAU + offset);
@@ -215,6 +222,13 @@ export function footPosition(bug, side, rest, offset, duty, maxTravel) {
     const s = (phi - duty) / (1 - duty);
     u = -0.5 + smooth(s);                       // swing: lifted and carried forward
     lift = Math.sin(Math.PI * s);
+    if (hip) {
+      const a = groundPoint(bug, side, rest, -0.5 * travel), b = groundPoint(bug, side, rest, 0.5 * travel);
+      const t = u + 0.5, p = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+      const ra = Math.hypot(a.x - hip.x, a.y - hip.y), rb = Math.hypot(b.x - hip.x, b.y - hip.y);
+      const r = (ra + (rb - ra) * t) * (1 + (hip.bulge ?? 0) * lift), d = Math.hypot(p.x - hip.x, p.y - hip.y) || 1;
+      return { x: hip.x + (p.x - hip.x) * r / d, y: hip.y + (p.y - hip.y) * r / d, lift };
+    }
   }
   const p = groundPoint(bug, side, rest, u * travel);
   return { x: p.x, y: p.y * (1 - 0.06 * lift), lift };
@@ -328,4 +342,87 @@ export function walkLeg(ctx, bug, { hx, hy, side, angle, segs, offset, duty, col
   const foot = footPosition(bug, side, rest, offset, duty, total * reach);
   drawJointedLeg(ctx, hx, pivot.py, foot, side, pivot.segs, color);
   return Object.assign(foot, pivot, { joints: legJoints(hx, pivot.py, foot, side, pivot.segs) });
+}
+
+// ---------------------------------------------------------------------------------------------
+// Legs in three dimensions (spiders). Each leg lies in an upright plane through its hip: the femur climbs to
+// a high knee, the tibia drops from it and the metatarsus and tarsus reach down to the foot. Posing the leg in
+// that plane and looking down on it gives the arched, foreshortened look of a real spider's legs, and the
+// knee moves smoothly as the foot travels instead of flipping like a flat linkage. A swinging foot lifts,
+// reaches out and sets down; heights (z, body units above the ground) also place the leg's shadow.
+// ---------------------------------------------------------------------------------------------
+
+const clamp1 = v => Math.max(-1, Math.min(1, v));
+
+// Joints of a leg with segment lengths [a, b, c], hip `hz` above the ground and the foot `fz` above it.
+// curl (radians, signed like a leg's bend; side -1 left, +1 right) swings the knee and, less, the ankle round
+// the hip off the hip-foot line, so legs curve forward or back as real ones do rather than lying dead straight.
+export function legPose3D(hip, hz, foot, fz, [a, b, c], curl = 0, side = 1) {
+  const dx = foot.x - hip.x, dy = foot.y - hip.y;
+  const d = Math.hypot(dx, dy) || 1e-6, ux = dx / d, uy = dy / d;
+  // The tarsus meets the ground steeply when the foot is close in and flatter when the leg is stretched out;
+  // flatter still if the knee couldn't otherwise reach.
+  let phi = Math.min(1.2, Math.max(0.25, 1.3 - 1.2 * d / (a + b + c)));
+  let ar = d - c * Math.cos(phi), az = fz + c * Math.sin(phi);
+  while (phi > 0 && Math.hypot(ar, az - hz) > (a + b) * 0.995) {
+    phi = Math.max(0, phi - 0.1);
+    ar = d - c * Math.cos(phi); az = fz + c * Math.sin(phi);
+  }
+  const e = Math.min(a + b - 1e-3, Math.max(Math.abs(a - b) + 1e-3, Math.hypot(ar, az - hz)));
+  const up = Math.atan2(az - hz, ar) + Math.acos(clamp1((a * a + e * e - b * b) / (2 * a * e)));   // knee bent upward
+  const at = (r, z, turn = 0) => {
+    const t = -side * curl * turn, c = Math.cos(t), s = Math.sin(t);
+    return { x: hip.x + (ux * c - uy * s) * r, y: hip.y + (ux * s + uy * c) * r, z };
+  };
+  return { hip: at(0, hz), knee: at(Math.cos(up) * a, hz + Math.sin(up) * a, 0.9), ankle: at(ar, az, 0.35), foot: at(d, fz) };
+}
+
+// One walking leg posed in 3D. The neutral pose (angle, segs) sets where the foot rests, as for walkLeg; the
+// leg itself is `arch` times longer than that reach, which is what lifts the knee. Returns the joints.
+export function walkLeg3D(bug, { hx, hy, side, angle, segs, offset, duty, edge = 0, reach = 0.6, hz = 6, lift = 0.12, arch = 1.3, bulge = 0.05, curl = 0 }) {
+  const pivot = legPivot(hy, side, segs, edge);
+  const rest = pivot.stub ? restFoot(hx, pivot.py, side, angle, pivot.segs) : restFoot(hx, hy, side, angle, segs);
+  const hip = { x: hx, y: pivot.py, bulge };
+  const span = Math.hypot(rest.x - hip.x, rest.y - hip.y);
+  const lens = pivot.segs.map(([len]) => len);
+  const k = (span * arch) / lens.reduce((s, l) => s + l, 0);
+  const foot = footPosition(bug, side, rest, offset, duty, span * reach, hip);
+  return Object.assign(legPose3D(hip, hz, foot, foot.lift * lift * span, lens.map(l => l * k), curl, side), { lift: foot.lift });
+}
+
+// The page is seen from a little off overhead, so a joint above the hip shows shifted toward the light (which
+// is fixed on screen, so planted feet still stay put as the bug turns) and one below it away from the light.
+export const VIEW_TILT = 0.4;
+const viewed = (light, p, hz) => ({ x: p.x + light.x * (p.z - hz) * VIEW_TILT, y: p.y + light.y * (p.z - hz) * VIEW_TILT });
+
+const LEG_JOINTS = ['hip', 'knee', 'ankle', 'foot'];
+
+// A posed 3D leg as seen on the page; widths per segment (femur, tibia, tarsus).
+export function drawLeg3D(ctx, light, pose, widths, color) {
+  ctx.strokeStyle = color;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  const pts = LEG_JOINTS.map(j => viewed(light, pose[j], pose.hip.z));
+  for (let i = 0; i < 3; i++) {
+    const p = pts[i], q = pts[i + 1];
+    ctx.lineWidth = widths[i];
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+    ctx.lineTo(q.x, q.y);
+    ctx.stroke();
+  }
+}
+
+// The leg's soft shadow on the ground: each joint pushed away from the light in proportion to its height.
+export function legShadow(ctx, light, pose, width, alpha = 0.14) {
+  ctx.strokeStyle = `rgba(0,0,0,${alpha})`;
+  ctx.lineWidth = width;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  LEG_JOINTS.forEach((j, i) => {
+    const { x, y } = viewed(light, pose[j], pose.hip.z), z = pose[j].z;
+    ctx[i ? 'lineTo' : 'moveTo'](x - light.x * z * 0.6, y - light.y * z * 0.6);
+  });
+  ctx.stroke();
 }
