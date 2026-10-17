@@ -35,6 +35,7 @@ test('store images exist at required sizes as 24-bit PNG with no alpha', () => {
   const expected = {
     'store/screenshot-1-1280x800.png': [1280, 800],
     'store/screenshot-2-1280x800.png': [1280, 800],
+    'store/screenshot-3-1280x800.png': [1280, 800],
     'store/promo-small-440x280.png': [440, 280],
     'icons/icon128.png': [128, 128]
   };

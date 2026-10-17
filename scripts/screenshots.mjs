@@ -82,6 +82,9 @@ try {
     await shot(page, path.join(storeDir, 'screenshot-1-1280x800.png'));
     const opts = await openOptions(ctx, id);
     await shot(opts, path.join(storeDir, 'screenshot-2-1280x800.png'));
+    await opts.evaluate(() => [...document.querySelectorAll('#species .species-group')].at(-2).scrollIntoView({ block: 'start' }));   // the bug picker: other bugs and spiders
+    await opts.waitForTimeout(300);
+    await shot(opts, path.join(storeDir, 'screenshot-3-1280x800.png'));
     await close();
   }
 
