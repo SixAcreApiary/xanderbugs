@@ -17,6 +17,7 @@ export default {
   maxTurn: 7,
   wander: 2.2,
   stride: 4,
+  twitchy: true,   // known for darting, stop-start movement
   draw(ctx, bug) {
     const L = bug.light;
     withBugFrame(ctx, bug, () => {

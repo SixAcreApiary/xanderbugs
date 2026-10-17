@@ -25,11 +25,11 @@ const PX_PER_MM = 2.307;
 export const ANT_BREEDS = [
   { id: 'ant', label: 'Carpenter ants', size: [25.1, 28.9], speed: [60, 100], front: BLACK, gaster: BLACK, leg: '#1a120e' },
   { id: 'fireant', label: 'Fire ants', size: [12.1, 13.9], speed: [42, 72], front: ['#d0703a', '#8a3414', '#3a1205'], gaster: ['#7a3a1c', '#3a1608', '#140602'], leg: '#5a230c' },
-  { id: 'argentineant', label: 'Argentine ants', size: [7.9, 9.1], speed: [48, 76], front: ['#a0784a', '#6a4a28', '#2a1a0a'], gaster: ['#8a643c', '#5a3c1e', '#22140a'], leg: '#6a4a2a' },
-  { id: 'pharaohant', label: 'Pharaoh ants', size: [6.5, 7.5], speed: [32, 52], front: ['#ecc678', '#c8902c', '#6a4410'], gaster: ['#c89a50', '#8a5a1c', '#3a2208'], leg: '#b8883a' },
+  { id: 'argentineant', label: 'Argentine ants', size: [7.9, 9.1], speed: [32, 52], front: ['#a0784a', '#6a4a28', '#2a1a0a'], gaster: ['#8a643c', '#5a3c1e', '#22140a'], leg: '#6a4a2a' },
+  { id: 'pharaohant', label: 'Pharaoh ants', size: [6.5, 7.5], speed: [22, 36], front: ['#ecc678', '#c8902c', '#6a4410'], gaster: ['#c89a50', '#8a5a1c', '#3a2208'], leg: '#b8883a' },
   { id: 'leafcutterant', label: 'Texas leafcutter ants', mm: 6, speed: [50, 85], front: RUST, gaster: ['#b8703e', '#7a3a14', '#2a1004'], leg: '#8a4a20',
     shape: { head: [36, 14, 15], meso: [12, 13, 7], gaster: [-25, 16, 11.5], nodes: [[-2, 3.4], [-8, 4]], jaws: 'cutter', heart: true, spines: true, legs: 1.25, antennae: 1.2 } },
-  { id: 'acrobatant', label: 'Acrobat ants', mm: 3, speed: [40, 70], front: ['#c86a3a', '#8a3814', '#3a1406'], gaster: ['#4a3a34', '#161010', '#040202'], leg: '#7a3a18',
+  { id: 'acrobatant', label: 'Acrobat ants', mm: 3, speed: [26, 45], front: ['#c86a3a', '#8a3814', '#3a1406'], gaster: ['#4a3a34', '#161010', '#040202'], leg: '#7a3a18',
     shape: { head: [33, 10, 9.5], meso: [13, 12, 5.5], gaster: [-23, 17, 15], nodes: [[0, 3], [-5, 3.5]], heartGaster: true } },
   { id: 'harvesterant', label: 'Red harvester ants', mm: 7, speed: [45, 80], front: ['#e0703a', '#a8381a', '#4a1206'], gaster: ['#d06a38', '#982e14', '#3a1006'], leg: '#8a2a10',
     shape: { head: [35, 13, 13], meso: [12, 14, 7], gaster: [-25, 19, 14], nodes: [[-2, 3.5], [-8, 4.2]], square: true, beard: true, legs: 1.1 } },
@@ -37,9 +37,9 @@ export const ANT_BREEDS = [
     shape: { head: [36, 13, 9], meso: [11, 15, 6], gaster: [-27, 18, 13], nodes: [[-5, 3.5]], jaws: 'trap', legs: 1.15, antennae: 1.1, eyes: 0.18 } },
   { id: 'bigheadedant', label: 'Big-headed ants', mm: 4, speed: [30, 55], front: ['#d8a060', '#9a5e24', '#3a2008'], gaster: ['#a06a34', '#64381a', '#241006'], leg: '#a8743c',
     shape: { head: [36, 17, 18], meso: [11, 11, 5], gaster: [-22, 15, 11], nodes: [[-1, 3], [-5, 3.4]], heart: true } },
-  { id: 'crazyant', label: 'Longhorn crazy ants', mm: 2.8, speed: [80, 140], dartRate: 0.6, front: ['#5a524c', '#24201c', '#080606'], gaster: ['#4a4440', '#1c1814', '#060404'], leg: '#3a3430',
+  { id: 'crazyant', label: 'Longhorn crazy ants', mm: 2.8, speed: [80, 140], dartRate: 0.6, twitchy: true, front: ['#5a524c', '#24201c', '#080606'], gaster: ['#4a4440', '#1c1814', '#060404'], leg: '#3a3430',
     shape: { head: [34, 9.5, 8], meso: [13, 14, 5], gaster: [-24, 17, 12], nodes: [[-2, 3]], legs: 1.6, antennae: 1.7 } },
-  { id: 'ghostant', label: 'Ghost ants', mm: 1.5, speed: [35, 60], front: ['#6a4a34', '#3a2414', '#140804'], gaster: ['#f4ecd8', '#d8ccb0', '#8a7a5a'], leg: '#e0d4b8',
+  { id: 'ghostant', label: 'Ghost ants', mm: 1.5, speed: [35, 60], twitchy: true, front: ['#6a4a34', '#3a2414', '#140804'], gaster: ['#f4ecd8', '#d8ccb0', '#8a7a5a'], leg: '#e0d4b8',
     shape: { gaster: [-25, 20, 14], nodes: [[-3, 3.5]], ghost: true } },
   { id: 'twigant', label: 'Twig ants', mm: 8.5, speed: [55, 95], front: ['#f0a050', '#c06a20', '#5a2a08'], gaster: ['#6a4a34', '#2a1a10', '#0a0604'], leg: '#d08840',
     shape: { head: [36, 9, 7.5], meso: [15, 15, 5], gaster: [-32, 18, 9], nodes: [[-4, 2.6], [-11, 3.4]], legs: 0.95, antennae: 0.7, eyes: 0.42 } }
@@ -177,6 +177,7 @@ function makeAnt(br) {
     maxTurn: br.dartRate ? 6 : 4.5,
     wander: br.dartRate ? 2.6 : 1.6,
     stride: ((9 * size[0]) / 15) * sh.legs,   // steps in proportion to its size, as long as its legs reach
+    twitchy: br.twitchy,
     greets: true,   // stops head to head with another ant of its own kind to touch antennae
     scent: true,    // lays a scent trail that other ants of its kind sometimes follow
     backLength: [0.06, 0.15],   // ants only shuffle back a fraction of their length
