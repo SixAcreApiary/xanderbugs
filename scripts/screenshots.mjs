@@ -14,7 +14,10 @@ const dist = path.join(root, 'dist');
 const docsDir = path.join(root, 'docs', 'screenshots');
 const storeDir = path.join(root, 'store');
 const SIZE = { width: 1280, height: 800 };
-const DEMO_SPECIES = ['ant', 'cockroach', 'spider', 'centipede', 'beetle', 'yellowjacket', 'stinkbug', 'housecentipede'];
+// A spread across every group, and a line-up of spiders to show off their walk.
+const VARIETY = ['ant', 'fieldant', 'italianbee', 'easternbumblebee', 'bigdipperfirefly', 'cockroach', 'beetle', 'stinkbug',
+  'earwig', 'yellowjacket', 'housecentipede', 'centipede', 'spider', 'gardenspider', 'boldjumper'];
+const SPIDER_SHOW = ['spider', 'blackwidow', 'gardenspider', 'yellowgardenspider', 'giantspider', 'boldjumper', 'crabspider', 'housespider'];
 mkdirSync(docsDir, { recursive: true });
 
 function pngIsOpaqueRgb(file) {
@@ -40,11 +43,11 @@ async function launch(extra = {}) {
   return { ctx, sw, id: new URL(sw.url()).host, close };
 }
 
-async function releaseBugs(sw, count) {
+async function releaseBugs(sw, count, species = VARIETY) {
   return sw.evaluate(async ({ species, count }) => {
     const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
     return chrome.tabs.sendMessage(tab.id, { target: 'content', type: 'spawn', species, count });
-  }, { species: DEMO_SPECIES, count });
+  }, { species: [...new Set(species)], count });
 }
 
 async function openOptions(ctx, id) {
@@ -76,9 +79,9 @@ try {
     await page.goto(siteUrl);
     await page.bringToFront();
     await page.waitForTimeout(500);
-    const res = await releaseBugs(sw, 12);
+    const res = await releaseBugs(sw, 16);
     if (!res?.ok) throw new Error(`bugs not released: ${JSON.stringify(res)}`);
-    await page.waitForTimeout(3500);
+    await page.waitForTimeout(7000);   // long enough for the slower kinds to walk in from the edges
     await shot(page, path.join(storeDir, 'screenshot-1-1280x800.png'));
     const opts = await openOptions(ctx, id);
     await shot(opts, path.join(storeDir, 'screenshot-2-1280x800.png'));
@@ -101,18 +104,25 @@ try {
     await browser.close();
   }
 
-  // Demo video: bugs crawling over the mock site
+  // Demo video: a mixed wave of bugs, then a line-up of spiders, then a few more of everything
   if (!process.argv.includes('--no-video')) {
     const videoTmp = mkdtempSync(path.join(tmpdir(), 'xanderbugs-video-'));
     const { ctx, sw, close } = await launch({ viewport: SIZE, recordVideo: { dir: videoTmp, size: SIZE } });
     const page = await ctx.newPage();
     await page.goto(siteUrl);
     await page.bringToFront();
+    await page.mouse.move(SIZE.width - 2, 2);   // pointer parked out of the way
     await page.waitForTimeout(1500);
-    await releaseBugs(sw, 10);
-    await page.waitForTimeout(6000);
-    await releaseBugs(sw, 8);
-    await page.waitForTimeout(12000);
+    const release = async (n, species) => {
+      const r = await releaseBugs(sw, n, species);
+      if (!r?.ok) throw new Error(`bugs not released: ${JSON.stringify(r)}`);
+    };
+    await release(12);
+    await page.waitForTimeout(7000);
+    await release(8, SPIDER_SHOW);
+    await page.waitForTimeout(10000);
+    await release(8, [...VARIETY, ...SPIDER_SHOW]);
+    await page.waitForTimeout(7000);
     const video = page.video();
     await close();
     const webm = path.join(storeDir, 'demo-1280x800.webm');
