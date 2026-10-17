@@ -45,7 +45,7 @@ Open source: https://github.com/SixAcreApiary/xanderbugs
   1. `store/screenshot-1-1280x800.png` - bugs crawling over a fictional gardening blog
   2. `store/screenshot-2-1280x800.png` - the settings page
   3. `store/screenshot-3-1280x800.png` - choosing which bugs can appear, grouped by kind
-- Promo video: `store/demo-1280x800.mp4` (21 s). The dashboard takes a YouTube URL, so upload it to YouTube first and paste the link.
+- Promo video: `store/demo-1280x800.mp4` (26 s: a mixed wave of bugs, a line-up of spiders, then a few of everything). The dashboard takes a YouTube URL, so upload it to YouTube first and paste the link.
 
 All screenshots and the video use `store/mock-site/`, a fictional site with original text and CSS-only artwork. It contains no trademarked or copyrighted third-party material.
 
