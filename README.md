@@ -2,7 +2,7 @@
 
 If you like this extension, consider [buying me a coffee](https://buymeacoffee.com/xanderphillips).
 
-A Chrome extension (Manifest V3). While you browse, it sends procedurally drawn bugs (seven kinds of ant, twelve kinds of spider, cockroaches, centipedes, silverfish, beetles, earwigs, yellowjackets, stink bugs, bedbugs, house centipedes, seven breeds of western honey bee, seven species of bumble bee and five flashing fireflies) scurrying across the page. Walking bugs give each other room and steer round one another (spiders keep a respectful distance), legs that brush another bug's flinch and now and then send one darting off (prey from predator, smaller from bigger, while ants and bees jostle their own kind calmly), ants that meet head on sometimes stop face to face to touch antennae or follow each other's scent trails, prey bolt from predators, honey bees now and then perform a waggle dance, fireflies flash their species' real patterns (some in sync), and bugs scatter from the mouse pointer (optional).
+A Chrome extension (Manifest V3). While you browse, it sends procedurally drawn bugs (twelve kinds of ant, twelve kinds of spider, twelve kinds of ladybug, twelve caterpillars including the woolly bear, cockroaches, centipedes, silverfish, beetles, earwigs, yellowjackets, stink bugs, bedbugs, house centipedes, twelve kinds of fly, seven breeds of western honey bee, seven species of bumble bee and five flashing fireflies) scurrying across the page. Walking bugs give each other room and steer round one another (spiders keep a respectful distance), legs that brush another bug's flinch and now and then send one darting off (prey from predator, smaller from bigger, while ants and bees jostle their own kind calmly), ants that meet head on sometimes stop face to face to touch antennae or follow each other's scent trails, prey bolt from predators, honey bees now and then perform a waggle dance, fireflies flash their species' real patterns (some in sync), and bugs scatter from the mouse pointer (optional).
 
 Everything is configurable on the settings page: bug sightings per hour, bugs per sighting, crawl speed, which bugs can appear and how often each one is picked, and sites where bugs should never appear.
 
@@ -33,10 +33,10 @@ Open the settings page by right-clicking the toolbar icon and choosing **Options
 | **Active Infestation** | Master on/off switch for scheduled sightings. Also available from the toolbar icon's right-click menu. | On |
 | **Bug sightings per hour** | How many times per hour bugs show up, picked at random between *at least* and *at most* (0 to 60). The **Min**/**Max** buttons jump to the limits. | 2 to 6 |
 | **Bugs per sighting** | How many bugs appear in each sighting (1 to 20). | 1 to 3 |
-| **Crawl speed** | How fast bugs move, from 25% to 250% of natural speed. **Reset to normal speed** returns it to 100%. | 100% |
+| **Crawl speed** | How fast bugs move, from 50% to 250% of natural speed. **Reset to normal speed** returns it to 100%. | 100% |
 | **Bugs scatter from the mouse pointer** | Bugs run when the pointer comes close. Only its position on the page is used, right there; nothing is stored or sent. | On |
 | **Life size** | Draws every bug at its real size on this screen. Needs **Calibrate this screen** first: hold a bank card against the outline and drag the slider until they match (redo it on another screen or resolution). | Off |
-| **Bug types** | Bugs are grouped by kind (ants, bumble bees, fireflies, honey bees, spiders and other bugs). Tick a bug to allow it; its **How often** slider sets how likely it is to be picked compared with the other ticked bugs. **All on** / **All off** switch a whole group, or every bug at the top. | All bugs, equal weight |
+| **Bug types** | Bugs are grouped by kind (ants, bumble bees, caterpillars, fireflies, flies, honey bees, ladybugs, spiders and other bugs). Tick a bug to allow it; its **How often** slider sets how likely it is to be picked compared with the other ticked bugs. **All on** / **All off** switch a whole group, or every bug at the top. | All bugs, equal weight |
 | **Release bugs on this page** | Sends a sighting across the settings page right away so you can preview your choices. | |
 | **Sites without bugs** | One site per line where bugs never appear. `example.com` also covers its subdomains; `*.example.com` covers only subdomains. Invalid lines are flagged and ignored. | Empty |
 | **Reset to defaults** | Restores every setting above. | |
@@ -49,7 +49,7 @@ Click the toolbar icon to release a wave of bugs on the current tab whenever you
 
 The bugs are computer-generated approximations drawn in code. Their shapes, colours, leg placement and walking patterns are loosely inspired by the real animals, but they are meant to be convincing at a glance, not scientifically accurate depictions.
 
-How they walk: insects step in an alternating tripod (a slow wave when crawling), spiders in an alternating tetrapod that ripples from back to front, and centipedes in a wave down the body. A planted foot stays put on the page until it lifts, the knees bend to reach it, and a swinging leg folds in as it lifts and reaches out before it sets down. Spiders' legs are posed in three dimensions, arching up to a high knee and casting soft shadows that fade as a leg lifts. Running lengthens the stride rather than just quickening the legs.
+How they walk: insects step in an alternating tripod (a slow wave when crawling), spiders in an alternating tetrapod that ripples from back to front, centipedes in a wave down the body, and caterpillars in a wave from tail to head that bunches and lifts each segment in turn (an inchworm loops). A planted foot stays put on the page until it lifts, the knees bend to reach it, and a swinging leg folds in as it lifts and reaches out before it sets down. Spiders' legs are posed in three dimensions, arching up to a high knee and casting soft shadows that fade as a leg lifts. Running lengthens the stride rather than just quickening the legs.
 
 ## Privacy
 

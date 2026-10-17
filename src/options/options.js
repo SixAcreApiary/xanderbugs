@@ -94,8 +94,16 @@ function startPreviews() {
   previewItems = previews.map(p => {
     const bug = createPreviewBug(p.id);
     const layer = document.createElement('canvas');
-    return { ...p, bug, ctx: p.canvas.getContext('2d'), layer, lctx: layer.getContext('2d') };
+    return { ...p, bug, ctx: p.canvas.getContext('2d'), layer, lctx: layer.getContext('2d'), shown: true };
   });
+  // Only specimens on screen are animated: there are dozens, and drawing them all every frame slowed the page.
+  if (typeof IntersectionObserver === 'function') {
+    const byCanvas = new Map(previewItems.map(it => [it.canvas, it]));
+    const watch = new IntersectionObserver(entries => {
+      for (const e of entries) { const it = byCanvas.get(e.target); if (it) it.shown = e.isIntersecting; }
+    });
+    for (const it of previewItems) watch.observe(it.canvas);
+  }
   if (previewLoop) return;
   previewLoop = true;
   let last = performance.now();
@@ -103,6 +111,8 @@ function startPreviews() {
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
     for (const it of previewItems) {
+      if (!it.shown && it.drawn) continue;
+      it.drawn = true;
       const { canvas, ctx, bug, layer, lctx } = it;
       const w = canvas.clientWidth, h = canvas.clientHeight, dpr = devicePixelRatio || 1;
       if (canvas.width !== Math.round(w * dpr)) {

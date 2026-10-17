@@ -103,6 +103,17 @@ test('content script rejects malformed messages', async () => {
   await page.close();
 });
 
+// The saved bug settings once they satisfy ok (or after a few seconds, whatever they are, for the asserts to report).
+async function savedBugs(ok) {
+  let b;
+  for (let i = 0; i < 50; i++) {
+    b = await sw.evaluate(async () => (await chrome.storage.local.get('settings')).settings.bugs);
+    if (ok(b)) break;
+    await new Promise(r => setTimeout(r, 100));
+  }
+  return b;
+}
+
 test('options page saves settings with validation', async () => {
   const page = await context.newPage();
   await page.goto(`chrome-extension://${extId}/src/options/options.html`);
@@ -123,13 +134,11 @@ test('options page saves settings with validation', async () => {
   await page.fill('#bug-max', '6');
   await page.locator('#bug-max').dispatchEvent('change');
   await page.click('button[data-set="max"][data-for="bug-min"]');
-  await page.waitForTimeout(500);
-  let b = await sw.evaluate(async () => (await chrome.storage.local.get('settings')).settings.bugs);
+  let b = await savedBugs(b => b.perHourMin === 60);
   assert.equal(b.perHourMin, 60, 'Max sets at-least to its limit');
   assert.equal(b.perHourMax, 60, 'and raises at-most to match');
   await page.click('button[data-set="min"][data-for="swarm-max"]');
-  await page.waitForTimeout(500);
-  b = await sw.evaluate(async () => (await chrome.storage.local.get('settings')).settings.bugs);
+  b = await savedBugs(b => b.perSwarmMax === 1);
   assert.equal(b.perSwarmMax, 1, 'Min sets at-most to its limit');
   assert.equal(b.perSwarmMin, 1, 'and lowers at-least to match');
   await page.click('#reset');
