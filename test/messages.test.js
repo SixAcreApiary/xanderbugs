@@ -36,6 +36,16 @@ test('spawn speed is optional but must be in range', () => {
   assert.equal(isValidMessage({ ...base, speed: '2' }), false);
 });
 
+test('a release can carry every species (each once) and up to 40 bugs', async () => {
+  const { BUG_SPECIES } = await import('../src/lib/settings.js');
+  const base = { target: 'content', type: 'spawn', species: ['ant'], count: 3 };
+  const every = BUG_SPECIES.map(x => x.id);
+  assert.ok(every.length > 64, 'more species than the old cap of 64');
+  assert.ok(isValidMessage({ ...base, species: every }), 'every species at once');
+  assert.ok(!isValidMessage({ ...base, species: [every[0], every[0]] }), 'but each only once');
+  assert.ok(isValidMessage({ ...base, count: 40 }) && !isValidMessage({ ...base, count: 41 }), 'up to 40 bugs a sighting');
+});
+
 test('spawn weights are optional but must be known species with whole numbers 1..10', () => {
   const base = { target: 'content', type: 'spawn', species: ['ant'], count: 1 };
   assert.ok(isValidMessage({ ...base, weights: { ant: 1, spider: 10 } }));

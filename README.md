@@ -32,7 +32,7 @@ Open the settings page by right-clicking the toolbar icon and choosing **Options
 |---|---|---|
 | **Active Infestation** | Master on/off switch for scheduled sightings. Also available from the toolbar icon's right-click menu. | On |
 | **Bug sightings per hour** | How many times per hour bugs show up, picked at random between *at least* and *at most* (0 to 60). The **Min**/**Max** buttons jump to the limits. | 2 to 6 |
-| **Bugs per sighting** | How many bugs appear in each sighting (1 to 20). | 1 to 3 |
+| **Bugs per sighting** | How many bugs appear in each sighting (1 to 40; more, with a few sightings on screen at once, would slow the animation below a smooth frame rate). | 1 to 3 |
 | **Crawl speed** | How fast bugs move, from 50% to 250% of natural speed. **Reset to normal speed** returns it to 100%. | 100% |
 | **Bugs scatter from the mouse pointer** | Bugs run when the pointer comes close. Only its position on the page is used, right there; nothing is stored or sent. | On |
 | **Life size** | Draws every bug at its real size on this screen. Needs **Calibrate this screen** first: hold a bank card against the outline and drag the slider until they match (redo it on another screen or resolution). | Off |

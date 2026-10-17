@@ -20,7 +20,7 @@ test('ranges are clamped and min/max swapped when inverted', () => {
   assert.equal(s.bugs.perHourMin, 3);
   assert.equal(s.bugs.perHourMax, 8);
   assert.equal(s.bugs.perSwarmMin, 1);
-  assert.equal(s.bugs.perSwarmMax, 20);
+  assert.equal(s.bugs.perSwarmMax, 40);
 });
 
 test('non-numeric ranges fall back to defaults', () => {

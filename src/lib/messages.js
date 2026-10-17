@@ -2,7 +2,8 @@ import { BUG_SPECIES, LIMITS } from './settings.js';
 
 const SPECIES = new Set(BUG_SPECIES.map(s => s.id));
 
-const isIdList = (l, allowed) => Array.isArray(l) && l.length <= 64 && l.every(x => allowed.has(x));
+// Any of the known ids, each at most once (so a list can name every species, however many there are).
+const isIdList = (l, allowed) => Array.isArray(l) && l.length <= allowed.size && new Set(l).size === l.length && l.every(x => allowed.has(x));
 const isInt = (n, lo, hi) => Number.isInteger(n) && n >= lo && n <= hi;
 const isWeights = w => w && typeof w === 'object' && !Array.isArray(w)
   && Object.entries(w).every(([k, v]) => SPECIES.has(k) && isInt(v, LIMITS.weight.min, LIMITS.weight.max));
