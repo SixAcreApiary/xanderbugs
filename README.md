@@ -2,7 +2,7 @@
 
 If you like this extension, consider [buying me a coffee](https://buymeacoffee.com/xanderphillips).
 
-A Chrome extension (Manifest V3). While you browse, it sends procedurally drawn bugs (seven kinds of ant, twelve kinds of spider, cockroaches, centipedes, silverfish, beetles, earwigs, yellowjackets, stink bugs, bedbugs, house centipedes, seven breeds of western honey bee, seven species of bumble bee and five flashing fireflies) scurrying across the page. Walking bugs give each other room and steer round one another, ants that meet head on sometimes stop face to face to touch antennae or follow each other's scent trails, prey bolt from predators, honey bees now and then perform a waggle dance, fireflies flash their species' real patterns (some in sync), and bugs scatter from the mouse pointer (optional).
+A Chrome extension (Manifest V3). While you browse, it sends procedurally drawn bugs (seven kinds of ant, twelve kinds of spider, cockroaches, centipedes, silverfish, beetles, earwigs, yellowjackets, stink bugs, bedbugs, house centipedes, seven breeds of western honey bee, seven species of bumble bee and five flashing fireflies) scurrying across the page. Walking bugs give each other room and steer round one another (spiders keep a respectful distance), legs that brush another bug's flinch and now and then send one darting off (prey from predator, smaller from bigger, while ants and bees jostle their own kind calmly), ants that meet head on sometimes stop face to face to touch antennae or follow each other's scent trails, prey bolt from predators, honey bees now and then perform a waggle dance, fireflies flash their species' real patterns (some in sync), and bugs scatter from the mouse pointer (optional).
 
 Everything is configurable on the settings page: bug sightings per hour, bugs per sighting, crawl speed, which bugs can appear and how often each one is picked, and sites where bugs should never appear.
 
@@ -47,6 +47,8 @@ Click the toolbar icon to release a wave of bugs on the current tab whenever you
 
 The bugs are computer-generated approximations drawn in code. Their shapes, colours, leg placement and walking patterns are loosely inspired by the real animals, but they are meant to be convincing at a glance, not scientifically accurate depictions.
 
+How they walk: insects step in an alternating tripod (a slow wave when crawling), spiders in an alternating tetrapod that ripples from back to front, and centipedes in a wave down the body. A planted foot stays put on the page until it lifts, the knees bend to reach it, and a swinging leg folds in as it lifts and reaches out before it sets down. Spiders' legs are posed in three dimensions, arching up to a high knee and casting soft shadows that fade as a leg lifts. Running lengthens the stride rather than just quickening the legs.
+
 ## Privacy
 
 Full policy: [PRIVACY.md](PRIVACY.md).
@@ -73,6 +75,7 @@ Open `chrome://extensions`, turn on Developer mode, choose **Load unpacked**, an
 
 ```sh
 npm test                       # unit tests: settings, scheduler, blocklist, messages, bug engine, privacy, store assets
+                               # (test/helpers/legaudit.js audits leg attachment, planted-foot slip, turning and spacing)
 npx playwright install chromium
 npm run test:e2e               # loads dist/ into headless Chromium and exercises bugs, settings, storage, network
 ```

@@ -16,13 +16,13 @@ export default {
   previewSize: 36,
   // Legs attach only to the thorax (pronotum region), never the abdomen; the test suite checks every hip lies within it.
   anatomy: { legSection: [11, 33], hips: LEGS.map(l => l.x) },
-  speed: [30, 60],
+  speed: [24, 48],
   pace: { drift: 0.2, dartRate: 0.02, dart: [1.4, 0.5] },   // speed drift and dart frequency/strength while walking
   pauseRate: 0.5,
   pauseTime: [0.6, 2.4],
   maxTurn: 3.5,
   wander: 1.3,
-  stride: 4.5,
+  stride: 4.3,         // as long a step as its legs can reach
   draw(ctx, bug) {
     const L = bug.light;
     withBugFrame(ctx, bug, () => {

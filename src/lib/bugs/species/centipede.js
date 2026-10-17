@@ -82,7 +82,7 @@ export default {
           if (last) leg(ctx, -2, side * 3, side, 2.75, [[12, 0, 1.6], [14, 0.1, 1.1]], pal.leg);
           else {
             const offset = ((-i * WAVE_LAG + (side > 0 ? 0.5 : 0)) % 1 + 1) % 1;
-            walkLeg(ctx, bug, { hx: 0, hy: side * 3.5, edge: 1.5, side, angle: 1.6, segs: [[6.5, 0, 1.6], [6.5, 0.55, 1.1]], offset, duty: dutyFactor(bug, 0.55), color: pal.leg });
+            walkLeg(ctx, bug, { hx: 0, hy: side * 3.5, edge: 1.5, side, angle: 1.6, segs: [[6.5, 0, 1.6], [6.5, 0.55, 1.1]], offset, duty: dutyFactor(bug, 0.55), color: pal.leg, sticky: false });
           }
         }
       });

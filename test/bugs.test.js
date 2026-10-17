@@ -530,6 +530,98 @@ test('legs left touching hold back instead of flinching over and over, and a kno
   assert.equal(gaveWay, startleCandidate(a, b), 'the bumped one (they are equal sizes and both still)');
 });
 
+test('a jointed leg folds at the ankle to reach a foot close in, keeping every segment its length', () => {
+  const segs = [[10, 0, 2], [16, 0.4, 1.5], [10, 0.2, 1]];
+  const j = gaitLib.legJoints(0, 0, { x: 4, y: 3 }, 1, segs);   // much closer than tibia+tarsus minus femur (16)
+  const len = (p, q) => Math.hypot(p.x - q.x, p.y - q.y);
+  assert.ok(len(j.foot, { x: 4, y: 3 }) < 1e-6, 'the foot reaches its spot');
+  assert.ok(Math.abs(len(j.hip, j.knee) - 10) < 1e-6 && Math.abs(len(j.knee, j.ankle) - 16) < 1e-6 && Math.abs(len(j.ankle, j.foot) - 10) < 1e-6);
+});
+
+test('every walking insect keeps its planted feet on the spot in a crowd', async () => {
+  const { auditCrowd } = await import('./helpers/legaudit.js');
+  const { SPIDER_IDS } = await import('../src/lib/bugs/species/spider.js');
+  // The silverfish's tiny legs step faster than frames are drawn (a blur), and the scolopendrid's ride its segments.
+  const ids = Object.keys(SPECIES).filter(id => !SPIDER_IDS.includes(id) && !['silverfish', 'centipede'].includes(id));
+  const r = auditCrowd(ids, { count: 30, seconds: 12, rng: seeded(21) });
+  assert.ok(r.samples > 1000);
+  assert.ok(r.slip99 < 1, `planted feet slipped ${r.slip99.toFixed(2)} px (99th percentile)`);
+});
+
+test('who takes fright at a touch follows soft rules: prey from predator, small from big, colony mates calmly', async () => {
+  const { startleCandidate, startleChance, touchFear, sameColony } = await import('../src/lib/bugs/engine.js');
+  const bug = (id, size, speed = 0) => Object.assign(createBug(id, { width: 800, height: 600, rng: seeded(1) }), { size, speed });
+  // A yellowjacket hunts spiders: the spider takes fright though it is the bigger of the two.
+  const wasp = bug('yellowjacket', 42), spider = bug('giantspider', 78);
+  assert.equal(startleCandidate(wasp, spider), spider);
+  assert.ok(touchFear(spider, wasp) > 0 && touchFear(wasp, spider) < 0);
+  // No hunting between them: the smaller gives way, and a big gap startles more readily than a small one.
+  const beetle = bug('beetle', 28), roach = bug('cockroach', 49), roach2 = bug('cockroach', 31);
+  assert.equal(startleCandidate(beetle, roach), beetle);
+  assert.ok(startleChance(beetle, roach) > startleChance(beetle, roach2));
+  // Between near equals, the one walked into (the slower).
+  const a = bug('cockroach', 49, 0), b = bug('cockroach', 49.5, 80);
+  assert.equal(startleCandidate(a, b), a);
+  // Colony mates jostle all the time: far less likely to take fright than strangers.
+  const ant1 = bug('ant', 27), ant2 = bug('fieldant', 27.5), roachSmall = bug('cockroach', 27.5);
+  assert.ok(sameColony(ant1, ant2) && !sameColony(ant1, roachSmall));
+  assert.ok(startleChance(ant1, ant2) < startleChance(ant1, roachSmall) * 0.5);
+});
+
+test('insect legs flinch at a touch too', async () => {
+  const { touchLegs } = await import('../src/lib/bugs/engine.js');
+  const { recorder } = await import('./helpers/legaudit.js');
+  const make = (seed, x, heading) => {
+    const b = createBug('cockroach', { width: 800, height: 600, rng: seeded(seed) });
+    Object.assign(b, { x, y: 300, heading, entered: true, delay: 0 });
+    b.species.draw(recorder().ctx, b);
+    b.rng = () => 0.99;
+    return b;
+  };
+  const a = make(1, 300, Math.PI / 2), b = make(2, 300, -Math.PI / 2);   // side by side, facing opposite ways
+  const reach = Math.max(...a.legPoses.map(p => Math.hypot(p.foot.x, p.foot.y))) * a.size / 100;
+  b.x = 300 + reach * 1.2;
+  for (let f = 0; f < 6; f++) touchLegs([a, b], [a, b], 1 / 60);
+  assert.ok(a.recoil.some(r => r > 0.3) && b.recoil.some(r => r > 0.3), 'both cockroaches flinch');
+  const before = a.legPoses.map(p => Math.hypot(p.foot.x - p.hip.x, p.foot.y - p.hip.y));
+  a.species.draw(recorder().ctx, a);
+  const after = a.legPoses.map(p => Math.hypot(p.foot.x - p.hip.x, p.foot.y - p.hip.y));
+  const i = a.recoil.findIndex(r => r > 0.3);
+  assert.ok(after[i] < before[i], 'the touched leg is drawn in');
+});
+
+test('a leg pressing on another bug\'s body counts as a touch: the leg flinches and the touched bug notices', async () => {
+  const { touchLegs, bodyDiscs } = await import('../src/lib/bugs/engine.js');
+  const { recorder } = await import('./helpers/legaudit.js');
+  const place = (id, seed, x, y, heading) => {
+    const b = createBug(id, { width: 800, height: 600, rng: seeded(seed) });
+    Object.assign(b, { x, y, heading, entered: true, delay: 0, speed: 0 });
+    b.species.draw(recorder().ctx, b);
+    b.rng = () => 0;   // any chance of a fright comes up
+    return b;
+  };
+  // An ant beside a bumble bee, close enough that its legs reach under the bee's body but not the bee's legs.
+  const bee = place('easternbumblebee', 1, 300, 300, 0);
+  const ant = place('fieldant', 2, 300, 300, 0);
+  const world = (b, p) => ({ x: b.x + (p.x * Math.cos(b.heading) - p.y * Math.sin(b.heading)) * b.size / 100, y: b.y + (p.x * Math.sin(b.heading) + p.y * Math.cos(b.heading)) * b.size / 100 });
+  let found = false;
+  for (let dy = bee.size * 0.6; dy > 0 && !found; dy -= 0.5) {
+    ant.y = 300 + dy;
+    ant.species.draw(recorder().ctx, ant);
+    const discs = bodyDiscs(bee);
+    found = ant.legPoses.some(p => discs.some(d => Math.hypot(world(ant, p.foot).x - d.x, world(ant, p.foot).y - d.y) < d.r));
+  }
+  assert.ok(found, 'set up an ant foot on the bee');
+  touchLegs([ant, bee], [ant, bee], 1 / 60);
+  assert.ok(ant.recoil.some(r => r > 0), 'the ant\'s leg flinches');
+  assert.equal(bee.bodyFree, 0, 'the bee feels it');
+  assert.ok(ant.alarm > 0.5, 'and the smaller ant takes fright (chance forced)');
+  // A centipede has no posed legs but its body can still be touched.
+  const pede = place('centipede', 3, 500, 300, 0);
+  touchLegs([pede], [pede], 1 / 60);
+  assert.equal(pede.bodyFree, Infinity, 'nothing touching yet');
+});
+
 test('a planted foot stays put on the ground while the body walks over it', async () => {
   const { advanceGait } = await import('../src/lib/bugs/engine.js');
   const b = createBug('beetle', { width: 800, height: 600, rng: seeded(12) });
@@ -1532,6 +1624,7 @@ test('two bugs held up nose to nose back off and sidestep instead of standing lo
     Object.assign(a, { x: 600, y: 400, heading: 0, entered: true, speed: 0 });
     Object.assign(b, { x: 600 + gap, y: 400, heading: Math.PI, entered: true, speed: 0 });
     for (const q of [a, b]) q.species = { ...q.species, pauseRate: 0 };
+    for (const q of [a, b]) q.huntCooldown = Infinity;   // about getting unstuck: a spider turning back to hunt the earwig isn't
     a.waypoints = [{ x: 1100, y: 400 }, { x: 1300, y: 400 }];
     b.waypoints = [{ x: 100, y: 400 }, { x: -200, y: 400 }];
     let longest = 0, run = 0;
