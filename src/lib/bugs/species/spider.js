@@ -1,4 +1,4 @@
-import { withBugFrame, shadedEllipse, specular, groundShadow, leg, walkLeg, drawJointedLeg, tetrapodGait, TAU, bodyEdge } from '../common.js';
+import { withBugFrame, shadedEllipse, specular, groundShadow, leg, walkLeg3D, drawLeg3D, legShadow, VIEW_TILT, tetrapodGait, TAU, bodyEdge } from '../common.js';
 
 // Spiders. They share one body plan: eight legs fanning round the cephalothorax (alternating tetrapod gait:
 // L1,R2,L3,R4 step together, opposite the other four), and an abdomen behind. Each kind has its own body
@@ -223,30 +223,37 @@ function makeSpider(br) {
     pauseTime: [0.6, 3.0],
     maxTurn: 5,
     wander: 0.9,
-    stride: 16 * legLen,          // long-legged kinds take longer steps
+    stride: 18 * legLen,          // long-legged kinds take longer steps
     draw(ctx, bug) {
       const L = bug.light;
       withBugFrame(ctx, bug, () => {
         groundShadow(ctx, L, abd.cx + 10, 0, abd.rx + ceph.rx + 8, Math.max(abd.ry, ceph.ry) * 1.6, 0.28);
+        const legs = [];
         for (const side of [-1, 1]) {
           LEGS.forEach((l, i) => {
-            const hx = l.hx, hy = side * l.hy;
             const segs = [[26 * l.len, 0, 4.6 * legW], [30 * l.len, l.bend, 3.6 * legW], [22 * l.len, l.bend * 0.6, 2.4 * legW]];
-            const foot = walkLeg(ctx, bug, { hx, hy, edge: bodyEdge(hx, outline) - l.hy, side, angle: l.angle, segs, ...tetrapodGait(bug, i, side), color: br.legs[1] });
-            // A lighter core along the same leg gives a hairy look; banded kinds get dashes of their band colour.
-            drawJointedLeg(ctx, hx, foot.py, foot, side, foot.segs.map(([len, b, w]) => [len, b, w * 0.45]), br.legs[0]);
-            if (br.bands) {
-              ctx.setLineDash([4 * l.len, 6 * l.len]);
-              drawJointedLeg(ctx, hx, foot.py, foot, side, foot.segs.map(([len, b, w]) => [len, b, w * 0.7]), br.bands);
-              ctx.setLineDash([]);
-            }
-            if (br.tips) {
-              ctx.fillStyle = br.tips;
-              ctx.beginPath();
-              ctx.arc(foot.x, foot.y, 1.6 * legW + 0.6, 0, TAU);
-              ctx.fill();
-            }
+            const pose = walkLeg3D(bug, { hx: l.hx, hy: side * l.hy, edge: bodyEdge(l.hx, outline) - l.hy, side, angle: l.angle, segs, ...tetrapodGait(bug, i, side), hz: ceph.ry * 0.5, curl: l.bend });
+            legs.push({ l, pose, widths: segs.map(([, , w]) => w) });
           });
+        }
+        for (const { pose, widths } of legs) legShadow(ctx, L, pose, widths[1]);
+        for (const { l, pose, widths } of legs) {
+          drawLeg3D(ctx, L, pose, widths, br.legs[1]);
+          // A lighter core along the same leg gives a hairy look; banded kinds get dashes of their band colour.
+          drawLeg3D(ctx, L, pose, widths.map(w => w * 0.45), br.legs[0]);
+          if (br.bands) {
+            ctx.setLineDash([4 * l.len, 6 * l.len]);
+            drawLeg3D(ctx, L, pose, widths.map(w => w * 0.7), br.bands);
+            ctx.setLineDash([]);
+          }
+          if (br.tips) {
+            ctx.fillStyle = br.tips;
+            ctx.beginPath();
+            ctx.arc(pose.foot.x + L.x * -pose.hip.z * VIEW_TILT, pose.foot.y + L.y * -pose.hip.z * VIEW_TILT, 1.6 * legW + 0.6, 0, TAU);
+            ctx.fill();
+          }
+        }
+        for (const side of [-1, 1]) {
           const pw = Math.sin(bug.t * 5 + side) * 0.2;                     // pedipalps
           leg(ctx, ceph.cx + ceph.rx * 0.8, side * 4, side, 0.35 + pw, [[9 * Math.min(1, legLen), 0, 3 * legW], [7, -0.3, 2.4 * legW]], br.legs[1]);
         }

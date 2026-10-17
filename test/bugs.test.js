@@ -211,13 +211,60 @@ test('very slow insects switch to a back-to-front wave, sides half a cycle apart
   assert.ok(gaitLib.insectGait(bug, 0, -1).duty > gaitLib.insectGait({ speedScale: 1 }, 0, -1).duty, 'more feet down when slow');
 });
 
-test('spiders use an alternating tetrapod: L1+R2+L3+R4 vs R1+L2+R3+L4', () => {
+test('spiders use an alternating tetrapod: L1+R2+L3+R4 vs R1+L2+R3+L4, rippling back to front', () => {
   const bug = { speedScale: 1 };
   const o = (leg, side) => gaitLib.tetrapodGait(bug, leg, side).offset;
+  const dist = (a, b) => { const d = Math.abs(a - b) % 1; return Math.min(d, 1 - d); };
   const groupA = [o(0, -1), o(1, 1), o(2, -1), o(3, 1)];
   const groupB = [o(0, 1), o(1, -1), o(2, 1), o(3, -1)];
-  assert.ok(groupA.every(v => v === groupA[0]) && groupB.every(v => v === groupB[0]));
-  assert.equal(Math.abs(groupA[0] - groupB[0]), 0.5);
+  for (const g of [groupA, groupB]) assert.ok(g.every(v => dist(v, g[0]) <= 0.25), 'a tetrapod steps roughly together');
+  for (let leg = 0; leg < 4; leg++) assert.ok(Math.abs(dist(o(leg, -1), o(leg, 1)) - 0.5) < 1e-9, 'the two sides half a cycle apart');
+  for (let leg = 0; leg < 3; leg++) {
+    const lag = dist(o(leg, -1), o(leg + 1, -1));
+    assert.ok(lag > 0.35 && lag < 0.5, `adjacent legs ${leg + 1}/${leg + 2} near, not exactly, antiphase (${lag.toFixed(2)})`);
+  }
+  assert.ok(o(2, -1) > o(0, -1) && o(3, 1) > o(1, 1), 'within a tetrapod the hind legs step first');
+  assert.ok(gaitLib.tetrapodGait(bug, 0, -1).duty >= 0.6, 'walking spiders keep most feet down');
+});
+
+test('a spider swing carries the foot round the hip instead of folding the leg in', () => {
+  const hip = { x: 10, y: 8 }, rest = { x: 20, y: 60 };
+  const b = { size: 100, stridePx: 40, phaseL: 0, phaseR: 0 };
+  const radius = f => Math.hypot(f.x - hip.x, f.y - hip.y);
+  const swing = [];
+  for (let i = 0; i < 60; i++) {
+    b.phaseL = (i / 60) * 2 * Math.PI;
+    const arc = gaitLib.footPosition(b, -1, rest, 0, 0.6, 1e9, hip), line = gaitLib.footPosition(b, -1, rest, 0, 0.6, 1e9);
+    if (arc.lift > 0.5) swing.push([radius(arc), radius(line)]);
+    else if (!arc.lift) assert.ok(Math.hypot(arc.x - line.x, arc.y - line.y) < 1e-9, 'planted feet are unchanged');
+  }
+  assert.ok(swing.length && swing.every(([a, l]) => a > l), 'mid-swing the foot stays further out than on a straight path');
+});
+
+test('a 3D leg keeps its segment lengths, arches its knee up and reaches the foot', () => {
+  const hip = { x: 20, y: 10 }, foot = { x: 40, y: 60 }, lens = [30, 34, 24];
+  const p = gaitLib.legPose3D(hip, 6, foot, 0, lens);
+  const dist = (u, v) => Math.hypot(u.x - v.x, u.y - v.y, u.z - v.z);
+  assert.ok(Math.abs(dist(p.hip, p.knee) - 30) < 1e-6 && Math.abs(dist(p.knee, p.ankle) - 34) < 1e-6 && Math.abs(dist(p.ankle, p.foot) - 24) < 1e-6);
+  assert.ok(p.knee.z > p.hip.z && p.knee.z > p.ankle.z && p.ankle.z > 0, 'femur climbs to a high knee, the leg comes down to the foot');
+  assert.deepEqual([p.foot.x, p.foot.y, p.foot.z], [40, 60, 0]);
+  const curled = gaitLib.legPose3D(hip, 6, foot, 0, lens, -0.4, 1);
+  assert.notDeepEqual([curled.knee.x, curled.knee.y], [p.knee.x, p.knee.y], 'curl swings the knee off the hip-foot line');
+  assert.equal(curled.knee.z, p.knee.z);
+});
+
+test('a 3D leg moves smoothly through a stride: no knee snaps, foot planted then lifted', () => {
+  const bug = { size: 100, stridePx: 60, phaseL: 0, phaseR: 0, speedScale: 1 };
+  const segs = [[27, 0, 4], [31, -0.35, 3], [23, -0.2, 2]];
+  let prev = null, lifted = 0;
+  for (let i = 0; i <= 400; i++) {
+    bug.phaseL = (i / 400) * 2 * Math.PI;
+    const p = gaitLib.walkLeg3D(bug, { hx: 22, hy: -8, side: -1, angle: 0.55, segs, offset: 0, duty: 0.64, edge: 4, curl: -0.35 });
+    if (prev) assert.ok(Math.hypot(p.knee.x - prev.knee.x, p.knee.y - prev.knee.y, p.knee.z - prev.knee.z) < 1, `knee jumped at step ${i}`);
+    if (p.lift > 0) { lifted++; assert.ok(p.foot.z > 0); } else assert.equal(p.foot.z, 0);
+    prev = p;
+  }
+  assert.ok(lifted > 400 * 0.3 && lifted < 400 * 0.4, 'the foot is up for the swing share of the cycle');
 });
 
 test('a planted foot stays put on the ground while the body walks over it', async () => {
@@ -527,7 +574,7 @@ test('every species tells its walking legs where the body edge is', async () => 
   const dir = new URL('../src/lib/bugs/species/', import.meta.url);
   for (const f of await readdir(dir)) {
     const src = await readFile(new URL(f, dir), 'utf8');
-    for (const call of src.match(/walkLeg\(ctx, bug, \{[^}]*/g) ?? []) assert.match(call, /\bedge:/, `${f}: ${call.slice(0, 60)}`);
+    for (const call of src.match(/walkLeg(?:3D)?\((?:ctx, )?bug, \{[^}]*/g) ?? []) assert.match(call, /\bedge:/, `${f}: ${call.slice(0, 60)}`);
   }
 });
 
