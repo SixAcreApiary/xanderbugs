@@ -24,7 +24,7 @@ export const FLY_BREEDS = [
   { id: 'fruitfly', label: 'Fruit fly', mm: 2.5, head: [16, 24], thorax: [26, 24], abdomen: [34, 26],
     eyes: { size: 0.6, gap: 0.7, colors: ['#ff5040', '#c01808', '#5a0400'] },
     thoraxColors: ['#e0b878', '#b07e3e', '#5a3a14'], abdomenColors: ['#e8c890', '#b8884a', '#5a3a14'], abdomenMark: 'bands',
-    wing: { len: 1.15, width: 0.4, spread: 0.2, tint: 'rgba(220,220,215,0.25)' }, legColor: '#9a7040', speed: [30, 55], stride: 4.4 },
+    wing: { len: 1.15, width: 0.4, spread: 0.2, tint: 'rgba(220,220,215,0.25)' }, legColor: '#9a7040', speed: [24, 44], stride: 4.4 },
   // Tipula: a slender grey-brown body on enormously long, thin legs, narrow wings held out to the sides.
   { id: 'cranefly', label: 'Crane fly', mm: 20, head: [9, 9], thorax: [18, 15], abdomen: [62, 10], snout: true, halteres: true,
     eyes: { size: 0.7, gap: 0.8, colors: ['#3a3430', '#1a1614', '#060504'] },
@@ -297,6 +297,7 @@ function makeFly(br) {
     stride: br.stride,         // long enough that its legs don't flicker
     nerves: br.nerves,         // flies take fright sooner than most
     keepApart: br.keepApart,   // personal space around long legs (fraction of size)
+    twitchy: ['housefly', 'greenbottlefly', 'fruitfly', 'deerfly', 'horsefly', 'robberfly'].includes(br.id),   // stop-start walkers and darting hunters
     draw(ctx, bug) {
       const L = bug.light;
       const flick = bug.loosen || bug.alarm > 0.3 ? Math.sin(bug.t * 95) * 0.08 : 0;   // wings whir when it bolts

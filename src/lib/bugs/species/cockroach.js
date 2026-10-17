@@ -22,7 +22,8 @@ export default {
   pauseTime: [0.3, 2.2],
   maxTurn: 6,
   wander: 1.1,
-  stride: 20.5,        // as long a step as its front legs can reach
+  stride: 20.5,
+  twitchy: true,   // known for darting, stop-start movement        // as long a step as its front legs can reach
   draw(ctx, bug) {
     const L = bug.light;
     const legColor = '#4a2410';

@@ -15,8 +15,8 @@ const docsDir = path.join(root, 'docs', 'screenshots');
 const storeDir = path.join(root, 'store');
 const SIZE = { width: 1280, height: 800 };
 // A spread across every group, and a line-up of spiders to show off their walk.
-const VARIETY = ['ant', 'fieldant', 'italianbee', 'easternbumblebee', 'bigdipperfirefly', 'cockroach', 'beetle', 'stinkbug',
-  'earwig', 'yellowjacket', 'housecentipede', 'centipede', 'spider', 'gardenspider', 'boldjumper', 'housefly', 'horsefly', 'cranefly', 'beefly'];
+const VARIETY = ['ant', 'leafcutterant', 'italianbee', 'easternbumblebee', 'bigdipperfirefly', 'cockroach', 'beetle', 'stinkbug',
+  'earwig', 'yellowjacket', 'housecentipede', 'centipede', 'spider', 'gardenspider', 'boldjumper', 'housefly', 'horsefly', 'cranefly', 'beefly', 'sevenspotladybug', 'asianladybug', 'woollybear', 'monarchcaterpillar', 'trapjawant'];
 const SPIDER_SHOW = ['spider', 'blackwidow', 'gardenspider', 'yellowgardenspider', 'giantspider', 'boldjumper', 'crabspider', 'housespider'];
 mkdirSync(docsDir, { recursive: true });
 
