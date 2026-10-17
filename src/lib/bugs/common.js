@@ -308,21 +308,24 @@ export function outlineEdge(x, pts) {
 // Hips sit hidden under the body. A femur pivoting there sweeps its visible base back and forth along
 // the body's edge as the leg swings, so the leg looks like it slides around the body. Instead the leg
 // pivots just inside the outline (edge = distance from the hip out to it) and the hidden part of the
-// femur is left out, so the visible joint stays put and only the leg's own joints move.
+// femur is left out, so the visible joint stays put and only the leg's own joints move. Where the body
+// covers more than most of the femur, the pivot still goes to the edge and a short stub of femur is kept
+// (stub: the leg then stands from the pivot, as if the hip were there).
 export function legPivot(hy, side, segs, edge = 0) {
   const a = segs[0][0];
-  const cut = Math.min(Math.max(0, edge) * 0.85, a * 0.65);
-  return { py: hy + side * cut, segs: [[a - cut, segs[0][1], segs[0][2]], ...segs.slice(1)] };
+  const cut = Math.max(0, edge);
+  const stub = a - cut < a * 0.35;
+  return { py: hy + side * cut, segs: [[stub ? a * 0.35 : a - cut, segs[0][1], segs[0][2]], ...segs.slice(1)], stub };
 }
 
 // One walking leg: neutral pose from (angle, segs), foot planted/swung by the gait, knee by IK.
 // Returns the foot, plus the visible pivot and segments (py, segs) for drawing overlays on the same leg, and
 // the joints it was drawn with (joints) so things carried on a segment can move with it.
 export function walkLeg(ctx, bug, { hx, hy, side, angle, segs, offset, duty, color, edge = 0, reach = 0.6 }) {
-  const rest = restFoot(hx, hy, side, angle, segs);
-  const total = segs.reduce((s, [len]) => s + len, 0);
-  const foot = footPosition(bug, side, rest, offset, duty, total * reach);
   const pivot = legPivot(hy, side, segs, edge);
+  const rest = pivot.stub ? restFoot(hx, pivot.py, side, angle, pivot.segs) : restFoot(hx, hy, side, angle, segs);
+  const total = (pivot.stub ? pivot.segs : segs).reduce((s, [len]) => s + len, 0);
+  const foot = footPosition(bug, side, rest, offset, duty, total * reach);
   drawJointedLeg(ctx, hx, pivot.py, foot, side, pivot.segs, color);
   return Object.assign(foot, pivot, { joints: legJoints(hx, pivot.py, foot, side, pivot.segs) });
 }
