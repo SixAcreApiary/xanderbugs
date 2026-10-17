@@ -23,6 +23,9 @@ import { lifeScale } from './lifesize.js';
 export const SPECIES = Object.fromEntries([...ANTS, cockroach, centipede, ...SPIDERS, silverfish, beetle, earwig, yellowjacket, stinkbug, bedbug, housecentipede, ...BEES, ...BUMBLES, ...FIREFLIES, ...FLIES, ...LADYBUGS, ...CATERPILLARS].map(s => [s.id, s]));
 
 const MAX_LIFETIME_S = 45;
+// Movement is fluid unless a bug is known for jerky, stop-start movement (species.twitchy): calm kinds pause less often.
+const CALM_PAUSES = 0.6;
+const SLOW_LIFE = 1.2;     // a slow bug's time on screen covers at least this many page widths + heights at its pace
 const NEVER_ENTERED_S = 12;
 const WAYPOINT_RADIUS = 40;
 const STALL_SECONDS = 2.5;
@@ -107,6 +110,36 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const between = (rng, [a, b]) => lerp(a, b, rng());
 const wrapAngle = a => Math.atan2(Math.sin(a), Math.cos(a));
 
+// Done wandering (or out of time), a bug heads off by whichever edge of the page is nearest, roughly where it
+// already is, rather than crossing the page to the exit it was given; and it meanders there, by way of a point
+// partway along, to one side, instead of making a beeline.
+const LEAVE_SPREAD = 0.25;   // how far along the edge (fraction of its length) the way out may wander from straight out
+const LEAVE_BEND = 0.3;      // how far to one side the halfway point lies, as a fraction of the distance to go
+export function leaveRoute(b, width, height) {
+  const rng = b.rng ?? Math.random;
+  // The nearest edge, counting one ahead of it as a little nearer and one behind as a little further, so a bug in
+  // the middle carries on the way it's going instead of turning round for an edge that's barely closer.
+  const facing = [-Math.sin(b.heading ?? 0), Math.cos(b.heading ?? 0), Math.sin(b.heading ?? 0), -Math.cos(b.heading ?? 0)];
+  const gaps = [b.y, width - b.x, height - b.y, b.x].map((g, i) => g * (1 - 0.5 * facing[i]));   // top, right, bottom, left
+  const edge = gaps.indexOf(Math.min(...gaps));
+  // Drift along the edge the way it is already heading, so it never doubles back to leave.
+  const drift = edge % 2 === 0 ? Math.cos(b.heading ?? 0) : Math.sin(b.heading ?? 0);
+  const along = (edge % 2 === 0 ? b.x / width : b.y / height) + drift * rng() * 2 * LEAVE_SPREAD;
+  const at = Math.min(0.95, Math.max(0.05, along)), exit = edgePoint(edge, width, height, at, b.size * 3.2);
+  const rim = edgePoint(edge, width, height, at, 0);   // where it will cross the edge of the page
+  const dx = rim.x - b.x, dy = rim.y - b.y, d = Math.hypot(dx, dy) || 1, bend = (rng() < 0.5 ? -1 : 1) * d * LEAVE_BEND * (0.5 + rng() * 0.5);
+  const mid = { x: b.x + dx * 0.5 - (dy / d) * bend, y: b.y + dy * 0.5 + (dx / d) * bend };
+  // No bend for a bug already at the edge (it would be off the page), one heading away from its way out, or one
+  // too close to swing through without circling.
+  const turning = Math.abs(b.cruise ?? 0) / Math.max(0.1, b.species.maxTurn ?? 1);
+  const onPage = mid.x > b.size * 0.5 && mid.y > b.size * 0.5 && mid.x < width - b.size * 0.5 && mid.y < height - b.size * 0.5;
+  const ahead = Math.cos(b.heading) * dx + Math.sin(b.heading) * dy > 0;
+  b.waypoints = onPage && ahead && Math.hypot(mid.x - b.x, mid.y - b.y) > turning * 3 ? [mid, exit] : [exit];
+  b.best = Infinity;
+  b.stall = 0;
+  b.leaving = true;
+}
+
 function edgePoint(edge, w, h, along, margin) {
   switch (edge) {
     case 0: return { x: along * w, y: -margin };
@@ -144,8 +177,7 @@ export function createBug(speciesId, { width, height, rng = Math.random, delay =
     cruise: between(rng, sp.speed) * speedScale * scale,
     scale,
     speedScale,
-    // Slow crawlers get proportionally longer before they're hurried off screen.
-    maxLife: MAX_LIFETIME_S / Math.min(1, speedScale),
+    maxLife: MAX_LIFETIME_S / Math.min(1, speedScale),   // and for a slow crawler, longer (below)
     waypoints,
     paused: false,
     stateTime: 0,
@@ -195,6 +227,8 @@ export function createBug(speciesId, { width, height, rng = Math.random, delay =
     rng
   };
   bug.stridePx = strideLength(bug);   // travel per full leg cycle, used to keep planted feet still
+  // Slow crawlers get the time they need to amble well across the page before they're hurried off it.
+  bug.maxLife = Math.max(bug.maxLife, (SLOW_LIFE * (width + height)) / Math.max(1, bug.cruise));
   if (sp.flash) bug.sex = rng() < sp.females ? 'female' : 'male';
   return bug;
 }
@@ -267,8 +301,8 @@ export function stepBug(b, dt, width, height, others = [], pointer = null) {
   if (b.loosenCooldown > 0) b.loosenCooldown -= dt;
   b.stateTime -= dt;
 
-  if (b.age > b.maxLife && b.waypoints.length > 1) b.waypoints.splice(0, b.waypoints.length - 1);
   const urgent = b.age > b.maxLife;
+  if (!b.leaving && b.entered && urgent) leaveRoute(b, width, height);
 
   if (b.meetCooldown > 0) b.meetCooldown -= dt;
   if (b.meet && ((b.meet.time -= dt) <= 0 || b.meet.partner.done || urgent)) endMeeting(b);
@@ -284,7 +318,7 @@ export function stepBug(b, dt, width, height, others = [], pointer = null) {
     }
   } else if (!urgent && b.entered && !(b.backing > 0) && !(b.alarm > 0.05) && !b.hunt && !b.dance && !b.duel && !b.attend &&
     (b.caste !== 'queen' || b.fullyIn) &&   // a queen walks fully onto the screen before she settles
-    rng() < (b.caste === 'queen' ? QUEEN_REST.rate : sp.pauseRate) * dt) {
+    rng() < (b.caste === 'queen' ? QUEEN_REST.rate : sp.pauseRate * (sp.twitchy ? 1 : CALM_PAUSES)) * dt) {
     b.paused = true;
     b.stateTime = between(rng, b.caste === 'queen' ? QUEEN_REST.time : sp.pauseTime);
   }
@@ -352,14 +386,14 @@ export function stepBug(b, dt, width, height, others = [], pointer = null) {
   const wander = sp.wander;
   // Wandering only happens while moving; a stopped bug holds its heading instead of drifting round.
   // An ant on a scent trail wanders less, the more keenly it follows.
-  const wobble = (Math.sin(b.t * f1 + p1) * 0.6 + Math.sin(b.t * f2 + p2) * 0.4) * wander * (urgent ? 0.2 : 1) * b.moving *
+  const wobble = (Math.sin(b.t * f1 + p1) * 0.6 + Math.sin(b.t * f2 + p2) * 0.4) * wander * (urgent ? 0.6 : 1) * b.moving *
     (1 - 0.8 * (b.follow?.strength ?? 0));
   const diff = backing ? 0 : wrapAngle(desired - b.heading) + (b.dance ? 0 : wobble * 0.6);   // backs straight, then walks off
 
   // Real insects slow down to make a sharp turn; without this a fast bug's turning circle can be wider
   // than the waypoint and it orbits the spot forever.
   const sharpness = Math.min(1, Math.abs(wrapAngle(desired - b.heading)) / Math.PI);
-  let target = b.paused ? 0 : b.cruise * (urgent ? 1.4 : 1) * (1 - 0.65 * sharpness) * paceFactor(b, dt);
+  let target = b.paused ? 0 : b.cruise * (urgent ? 1.15 : 1) * (1 - 0.65 * sharpness) * paceFactor(b, dt);   // out of time, it picks up a little
   if (avoid) target *= 1 - 0.7 * avoid.blocked;   // give way to a bug right in front
   if (b.follow?.close) target = Math.min(target, Math.max(0, b.follow.leader.speed) * 1.05);   // don't climb over the leader
   else if (b.follow) {
@@ -391,7 +425,10 @@ export function stepBug(b, dt, width, height, others = [], pointer = null) {
     target = gap < b.size * 0.15 ? 0 : b.cruise * Math.max(0, Math.min(1, gap / b.size));
     b.attend.arrived = gap < b.size * 0.3;
   }
-  b.speed += (target - b.speed) * Math.min(1, dt * (b.paused || b.meet || b.attend || backing || b.hunt?.lunge > 0 ? 14 : 5));   // a strike is sudden
+  // Bugs ease to a stop, as most insects do; ones known for jerky, stop-start movement (species.twitchy) brake hard.
+  // Meeting, tending, backing off and striking are always quick. A strike is sudden.
+  const sharp = b.meet || b.attend || backing || b.hunt?.lunge > 0 || (b.paused && (sp.twitchy || b.caste === 'queen'));   // a queen settles where she chose to
+  b.speed += (target - b.speed) * Math.min(1, dt * (sharp ? 14 : 5));
   b.moving = Math.min(1, Math.abs(b.speed) / Math.max(1, b.cruise));
 
   const want = b.speed * dt;
@@ -461,6 +498,7 @@ export function stepBug(b, dt, width, height, others = [], pointer = null) {
     b.waypoints.shift();
     b.best = Infinity;
     b.stall = 0;
+    if (b.waypoints.length === 1 && !b.leaving && b.entered) leaveRoute(b, width, height);   // done wandering
   }
 
   const pad = b.size * 1.2;
@@ -516,10 +554,15 @@ export const neighbours = (b, others) => others.filter(o => o !== b && !o.done &
 
 // How deeply a bug's body would cut into its neighbours' in a given pose (0 = clear). Each neighbour is
 // padded by how far it may move this frame, so two bugs can't both step into the same gap at once.
+// Caterpillars (species.passable) crawl over whatever is in their way and are walked over in turn, as they are in
+// nature: their long, slow bodies can't back out or turn sharply, so they would otherwise wedge in a crowd.
+export const passable = (b, o) => !!(b.species.passable || o.species.passable);
+
 export function overlapDepth(b, hood, heading, x = b.x, y = b.y, dt = 0) {
   let depth = 0;
   const mine = bodyDiscs(b, heading, x, y);
   for (const o of hood) {
+    if (passable(b, o)) continue;
     const pad = Math.abs(o.speed) * dt;
     for (const t of bodyDiscs(o)) for (const m of mine) depth += Math.max(0, m.r + t.r + pad - Math.hypot(t.x - m.x, t.y - m.y));
   }
@@ -530,13 +573,14 @@ export function overlapDepth(b, hood, heading, x = b.x, y = b.y, dt = 0) {
 // well inside it (KEEP_FLOOR of the room, where legs would be deeply interleaved) may a step not bring the two
 // any closer; it may always take them apart, and turning is never held back, so nobody is trapped.
 export const KEEP_FLOOR = 0.7;
-export function keepRoom(b, hood, dist) {
+export function keepRoom(b, hood, dist, dt = 0) {
   if (b.alarm > 0.15) return dist;   // a frightened spider bolts, manners or not (bodies still can't overlap)
   const hx = Math.cos(b.heading), hy = Math.sin(b.heading);
   const ok = step => hood.every(o => {
     const floor = keepApart(b, o) * KEEP_FLOOR;
     if (!floor) return true;
-    const now = Math.hypot(o.x - b.x, o.y - b.y), next = Math.hypot(o.x - b.x - hx * step, o.y - b.y - hy * step);
+    // Allow for the other bug's own step this frame, so two closing on each other can't both slip inside.
+    const now = Math.hypot(o.x - b.x, o.y - b.y), next = Math.hypot(o.x - b.x - hx * step, o.y - b.y - hy * step) - Math.abs(o.speed ?? 0) * dt;
     return next >= Math.min(now, floor) - 1e-9;
   });
   for (const f of [1, 0.6, 0.3, 0.1]) if (ok(dist * f)) return dist * f;
@@ -548,7 +592,7 @@ export function keepRoom(b, hood, dist) {
 // ended up overlapping may always move or turn to ease out of it, so nobody gets locked together.
 export function clearance(b, hood, dist, dt = 0) {
   if (!dist || !hood.length) return dist;
-  dist = keepRoom(b, hood, dist);
+  dist = keepRoom(b, hood, dist, dt);
   if (!dist) return 0;
   const now = overlapDepth(b, hood, b.heading, b.x, b.y, dt);
   const hx = Math.cos(b.heading), hy = Math.sin(b.heading);

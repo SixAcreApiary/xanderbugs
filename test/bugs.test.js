@@ -17,19 +17,23 @@ test('every selectable species has a renderer', () => {
   for (const s of BUG_SPECIES) assert.ok(SPECIES[s.id], s.id);
 });
 
+// Seconds a swarm may take to leave: its bugs' time on screen (slow crawlers get longer), plus time to walk out.
+const leaveBy = (swarm, base) => Math.max(base, Math.max(...swarm.bugs.map(b => b.maxLife)) * 1.6 + 60);
+
 for (const id of Object.keys(SPECIES)) {
   test(`${id}: walks across the screen, draws with finite values, and leaves`, () => {
     const rng = seeded(id.length * 31);
     const { ctx, calls } = mockCanvas();
     const swarm = new Swarm({ species: [id], count: 3, width: 1280, height: 800, rng });
     let frames = 0;
-    while (!swarm.done && frames < 60 * 120) {
+    const limit = leaveBy(swarm, 120);
+    while (!swarm.done && frames < 60 * limit) {
       swarm.update(1 / 60);
       if (frames % 10 === 0) swarm.draw(ctx);
       for (const b of swarm.bugs) for (const k of ['x', 'y', 'heading', 'speed', 'phase']) assert.ok(Number.isFinite(b[k]), `${k} finite`);
       frames++;
     }
-    assert.ok(swarm.done, 'all bugs exit within two minutes of simulated time');
+    assert.ok(swarm.done, `all bugs exit within ${limit.toFixed(0)} s of simulated time`);
     assert.ok(swarm.bugs.every(b => b.entered), 'every bug actually crossed into view');
     assert.ok(calls.length > 0, 'renderer drew something');
   });
@@ -85,10 +89,11 @@ test('crawl speed setting scales how fast bugs move', () => {
 
 test('slowest crawlers still cross the screen and leave', () => {
   for (const id of Object.keys(SPECIES)) {
-    const swarm = new Swarm({ species: [id], count: 2, width: 1280, height: 800, speed: 0.25, rng: seeded(21) });
+    const swarm = new Swarm({ species: [id], count: 2, width: 1280, height: 800, speed: 0.5, rng: seeded(21) });   // the slowest crawl speed
     let frames = 0;
-    while (!swarm.done && frames < 30 * 60 * 8) { swarm.update(1 / 30); frames++; }
-    assert.ok(swarm.done, `${id} left within 8 simulated minutes`);
+    const limit = leaveBy(swarm, 480);
+    while (!swarm.done && frames < 30 * limit) { swarm.update(1 / 30); frames++; }
+    assert.ok(swarm.done, `${id} left within ${(limit / 60).toFixed(0)} simulated minutes`);
     assert.ok(swarm.bugs.every(b => b.entered), `${id} crossed into view`);
   }
 });
@@ -642,6 +647,83 @@ test('long legs get room from every bug: others keep clear of a crane fly, but a
   assert.equal(roomBetween(spider, fly), 0, 'a spider stalking a fly may close in');
 });
 
+test('done wandering, a bug leaves by the nearest edge, meandering there rather than beelining', async () => {
+  const { leaveRoute } = await import('../src/lib/bugs/engine.js');
+  const W = 1200, H = 800;
+  for (const [x, y, edge] of [[200, 400, 3], [1000, 300, 1], [600, 300, 0], [500, 610, 2]]) {
+    const b = createBug('cockroach', { width: W, height: H, rng: seeded(x + y) });
+    Object.assign(b, { x, y, entered: true, heading: [-Math.PI / 2, 0, Math.PI / 2, Math.PI][edge] });   // facing that edge
+    leaveRoute(b, W, H);
+    const exit = b.waypoints.at(-1), mid = b.waypoints[0];
+    const out = exit.y < 0 ? 0 : exit.x > W ? 1 : exit.y > H ? 2 : exit.x < 0 ? 3 : -1;
+    assert.equal(out, edge, `from (${x}, ${y}) it heads for the nearest edge`);
+    const along = Math.abs((exit.x - x) * (exit.y - y)) > 0 ? Math.abs(edge % 2 ? exit.y - y : exit.x - x) : 0;
+    assert.ok(along < (edge % 2 ? H : W) * 0.3, 'roughly straight out from where it is');
+    const t = ((mid.x - x) * (exit.x - x) + (mid.y - y) * (exit.y - y)) / ((exit.x - x) ** 2 + (exit.y - y) ** 2);
+    const off = Math.hypot(mid.x - (x + (exit.x - x) * t), mid.y - (y + (exit.y - y) * t));
+    assert.ok(off > 5, 'by way of a bend to one side');
+    assert.ok(b.leaving);
+  }
+});
+
+test('a whole release leaves by the nearest edges (the way they face breaking near ties), ambling out', () => {
+  const W = 1280, H = 800;
+  const sw = new Swarm({ species: Object.keys(SPECIES), count: 30, width: W, height: H, rng: seeded(4) });
+  const start = new Map(), ratios = [];
+  let byNearest = 0, left = 0;
+  for (let f = 0; f < 60 * leaveBy(sw, 240) && !sw.done; f++) {
+    sw.update(1 / 60);
+    for (const b of sw.bugs) {
+      if (b.leaving && !start.has(b)) {
+        // The nearest edge, an edge ahead counting a little nearer (so it doesn't turn round for one barely closer).
+        const facing = [-Math.sin(b.heading), Math.cos(b.heading), Math.sin(b.heading), -Math.cos(b.heading)];
+        const g = [b.y, W - b.x, H - b.y, b.x].map((d, i) => d * (1 - 0.5 * facing[i]));
+        start.set(b, { x: b.x, y: b.y, edge: g.indexOf(Math.min(...g)), path: 0, px: b.x, py: b.y, out: false });
+      }
+      const s0 = start.get(b);
+      if (!s0 || s0.out) continue;
+      if (!b.done) { s0.path += Math.hypot(b.x - s0.px, b.y - s0.py); s0.px = b.x; s0.py = b.y; continue; }
+      s0.out = true;
+      left++;
+      if ((b.y < 0 ? 0 : b.x > W ? 1 : b.y > H ? 2 : b.x < 0 ? 3 : -1) === s0.edge) byNearest++;
+      ratios.push(s0.path / Math.hypot(b.x - s0.x, b.y - s0.y));
+    }
+  }
+  assert.ok(sw.done && left > 20);
+  assert.ok(byNearest / left > 0.9, `${byNearest} of ${left} left by the nearest edge`);
+  ratios.sort((a, b) => a - b);
+  assert.ok(ratios[Math.floor(ratios.length / 2)] > 1.05, 'their way out meanders');
+});
+
+test('movement is fluid unless a bug is known for twitchy movement', async () => {
+  const { advanceGait } = await import('../src/lib/bugs/engine.js');
+  // Known for darting, stop-start movement: these may flicker their legs and brake hard.
+  const twitchy = ['crazyant', 'ghostant', 'silverfish', 'cockroach', 'housecentipede', 'boldjumper', 'zebrajumper',
+    'housefly', 'greenbottlefly', 'fruitfly', 'deerfly', 'horsefly', 'robberfly'];
+  assert.deepEqual(Object.keys(SPECIES).filter(id => SPECIES[id].twitchy).sort(), [...twitchy].sort(), 'the twitchy list is deliberate');
+  for (const id of Object.keys(SPECIES)) {
+    if (SPECIES[id].twitchy || SPECIES[id].trail) continue;   // segmented bodies ripple their many legs fast
+    const b = createBug(id, { width: 800, height: 600, rng: () => 0.5 });
+    b.speed = b.cruise;
+    for (let i = 0; i < 120; i++) advanceGait(b, b.speed / 60, 0, 1 / 60);
+    const swing = ((1 - gaitLib.dutyFactor(b)) / (b.speed / b.stridePx)) * 60;
+    assert.ok(swing >= 4, `${id}: each leg's swing spans ${swing.toFixed(1)} frames at its natural pace`);
+  }
+  const stopping = id => {
+    const b = createBug(id, { width: 800, height: 600, rng: seeded(2) });
+    Object.assign(b, { x: 400, y: 300, heading: 0, entered: true, delay: 0 });
+    b.waypoints = [{ x: 780, y: 300 }, { x: 900, y: 300 }];
+    for (let f = 0; f < 60; f++) { stepBug(b, 1 / 60, 800, 600, [b]); b.paused = false; }
+    const v0 = b.speed;
+    Object.assign(b, { paused: true, stateTime: 5 });
+    let t = 0;
+    while (b.speed > v0 * 0.1 && t < 3) { stepBug(b, 1 / 60, 800, 600, [b]); t += 1 / 60; }
+    return t;
+  };
+  assert.ok(stopping('sevenspotladybug') > 0.3, 'a calm bug eases to a stop');
+  assert.ok(stopping('housefly') < 0.25, 'a house fly stops short');
+});
+
 test('a planted foot stays put on the ground while the body walks over it', async () => {
   const { advanceGait } = await import('../src/lib/bugs/engine.js');
   const b = createBug('beetle', { width: 800, height: 600, rng: seeded(12) });
@@ -742,8 +824,9 @@ test('even the slowest bug eventually leaves a 4K window at max speed', () => {
   for (const id of Object.keys(SPECIES)) {
     const swarm = new Swarm({ species: [id], count: 2, width: 3840, height: 2160, speed: 2.5, rng: seeded(29) });
     let t = 0;
-    while (!swarm.done && t < 180) { swarm.update(1 / 30); t += 1 / 30; }
-    assert.ok(swarm.done, `${id} still on screen after 180 s`);
+    const limit = leaveBy(swarm, 180);
+    while (!swarm.done && t < limit) { swarm.update(1 / 30); t += 1 / 30; }
+    assert.ok(swarm.done, `${id} still on screen after ${limit.toFixed(0)} s`);
   }
 });
 
@@ -828,11 +911,13 @@ test('ants meeting head on stop face to face, wiggle antennae, then go their way
   const p = placed('ant', 500, 400, 800, 400, () => 0.1);
   const q = placed('ant', 538, 400, 200, 400, () => 0.1);
   const others = [p, q];
-  let met = false, stoppedTogether = false, parted = false, closest = Infinity;
+  let met = false, stoppedTogether = false, parted = false, closest = Infinity, greetings = 0, wasMeeting = false;
   const { ctx } = mockCanvas();
   for (let t = 0; t < 20; t += 1 / 60) {
     stepBug(p, 1 / 60, 1280, 800, others);
     stepBug(q, 1 / 60, 1280, 800, others);
+    if (p.meet && !wasMeeting) greetings++;
+    wasMeeting = !!p.meet;
     const d = Math.hypot(p.x - q.x, p.y - q.y);
     closest = Math.min(closest, d);
     if (p.meet && q.meet) {
@@ -849,7 +934,7 @@ test('ants meeting head on stop face to face, wiggle antennae, then go their way
   assert.ok(met && stoppedTogether && parted, JSON.stringify({ met, stoppedTogether, parted }));
   // Ant bodies are under 0.3 body lengths wide, so this clearance means no overlap even when passing side by side.
   assert.ok(closest > (p.size + q.size) * 0.25, `heads touch but bodies do not overlap (closest ${closest.toFixed(1)} px)`);
-  assert.ok(p.meetCooldown > 0 || p.x > 700, 'no immediate re-greeting');
+  assert.equal(greetings, 1, 'no re-greeting');
 });
 
 test('flies: twelve kinds in their own group, the house fly among them at a female\'s size', async () => {
@@ -909,18 +994,65 @@ test('caterpillars: twelve kinds in their own group, the woolly bear among them'
   assert.equal(looks.size, 12, 'no two look alike');
 });
 
-test('a caterpillar crawls with a wave from tail to head; an inchworm loops', async () => {
+test('a caterpillar crawls with a gentle wave from tail to head; an inchworm loops', async () => {
   const { CATERPILLAR_BREEDS, bodySegments } = await import('../src/lib/bugs/species/caterpillars.js');
   const br = id => CATERPILLAR_BREEDS.find(b => b.id === id);
-  const bug = { x: 400, y: 300, heading: 0, size: 140, trail: Array.from({ length: 300 }, (_, i) => ({ x: 400 - i, y: 300 })) };
-  const lifted = phase => { bug.phase = phase; const segs = bodySegments(br('monarchcaterpillar'), bug); return segs.reduce((m, s, i) => (s.lift > segs[m].lift ? i : m), 0); };
-  const early = lifted(0.4), later = lifted(3);
-  assert.ok(later < early, `the lifted segment moves forward (segment ${early} then ${later})`);
-  const length = phase => { bug.phase = phase; const s = bodySegments(br('inchworm'), bug); return Math.hypot(s[0].x - s.at(-1).x, s[0].y - s.at(-1).y); };
+  const walker = id => {
+    const b = createBug(id, { width: 800, height: 600, rng: seeded(3) });
+    Object.assign(b, { x: 400, y: 300, heading: 0 });
+    b.trail = Array.from({ length: 600 }, (_, i) => ({ x: 400 - i, y: 300 }));
+    return b;
+  };
+  const b = walker('monarchcaterpillar');
+  const stepping = phase => { b.phase = phase; const segs = bodySegments(br('monarchcaterpillar'), b); return segs.reduce((m, s, i) => (s.lift > segs[m].lift ? i : m), 0); };
+  const early = stepping(0.4), later = stepping(3);
+  assert.ok(later < early, `the stepping segment moves forward (segment ${early} then ${later})`);
+  // The body glides and a gentle wave rides along it: a stepping segment outpaces the rest, neighbours bunch only a
+  // little, and the waves come about once a second, not in a rapid, slinky pulse.
+  let prev = null, faster = 0, frames = 0, minGap = Infinity, maxGap = 0;
+  const spacing = b.size / 12;
+  for (let f = 0; f < 200; f++) {
+    const d = f * 0.5;
+    b.x = 400 + d;
+    b.trail = Array.from({ length: 600 }, (_, i) => ({ x: b.x - i, y: 300 }));
+    b.phase = (d / b.stridePx) * 2 * Math.PI;
+    const segs = bodySegments(br('monarchcaterpillar'), b);
+    for (let i = 1; i < segs.length; i++) { const g = segs[i - 1].x - segs[i].x; minGap = Math.min(minGap, g); maxGap = Math.max(maxGap, g); }
+    if (prev) {
+      const moves = segs.map((s, i) => s.x - prev[i].x), up = segs.filter(s => s.legsUp).length;
+      if (up) { frames++; if (Math.max(...moves.filter((_, i) => segs[i].legsUp)) > Math.max(...moves.filter((_, i) => !segs[i].legsUp))) faster++; }
+    }
+    prev = segs;
+  }
+  assert.ok(faster / frames > 0.9, 'the stepping segments move fastest');
+  assert.ok(minGap > spacing * 0.85 && maxGap < spacing * 1.15, `a gentle ripple (gaps ${(minGap / spacing).toFixed(2)}-${(maxGap / spacing).toFixed(2)} of a segment)`);
+  const waves = b.cruise / b.stridePx;
+  assert.ok(waves > 0.5 && waves < 2, `about a wave a second (${waves.toFixed(2)})`);
+  const w = walker('inchworm');
+  const length = phase => { w.phase = phase; const s = bodySegments(br('inchworm'), w); return Math.hypot(s[0].x - s.at(-1).x, s[0].y - s.at(-1).y); };
   assert.ok(length(Math.PI) < length(0) * 0.7, 'looped up, the inchworm is much shorter');
-  bug.phase = Math.PI;
-  const mid = bodySegments(br('inchworm'), bug);
+  w.phase = Math.PI;
+  const mid = bodySegments(br('inchworm'), w);
   assert.ok(mid[6].lift > 0.9 && mid[0].lift < 0.1, 'its middle arches up while its ends stay down');
+});
+
+test('caterpillars crawl over other bugs and are walked over, so a crowd never wedges them', async () => {
+  const { overlapDepth } = await import('../src/lib/bugs/engine.js');
+  const { CATERPILLAR_IDS } = await import('../src/lib/bugs/species/caterpillars.js');
+  const cat = createBug('hornworm', { width: 800, height: 600, rng: seeded(1) }), ant = createBug('ant', { width: 800, height: 600, rng: seeded(2) });
+  Object.assign(cat, { x: 300, y: 300, heading: 0 });
+  cat.trail = Array.from({ length: 400 }, (_, i) => ({ x: 300 - i, y: 300 }));
+  Object.assign(ant, { x: 280, y: 300, heading: Math.PI / 2 });
+  assert.equal(overlapDepth(ant, [cat], ant.heading), 0, 'the ant can walk over it');
+  assert.equal(overlapDepth(cat, [ant], cat.heading), 0, 'and it over the ant');
+  const sw = new Swarm({ species: [...CATERPILLAR_IDS, 'ant', 'cockroach', 'spider', 'italianbee', 'housefly'], count: 30, width: 1280, height: 720, rng: seeded(7) });
+  let walking = 0, held = 0, f = 0;
+  for (const limit = leaveBy(sw, 300); !sw.done && f < 60 * limit; f++) {
+    sw.update(1 / 60);
+    for (const b of sw.bugs) if (!b.done && b.entered && !b.paused && b.delay <= 0) { walking++; if (b.hemmed > 0.5) held++; }
+  }
+  assert.ok(sw.done, 'the release clears');
+  assert.ok(held / walking < 0.05, `held up ${(100 * held / walking).toFixed(1)}% of the time`);
 });
 
 test('flies are prey to spiders, centipedes and yellowjackets; robber flies hunt other flies and bees', async () => {

@@ -25,7 +25,7 @@ Carpenter, fire, Argentine, pharaoh, Texas leafcutter, acrobat, red harvester, t
 
 FEATURES
 - Random sightings while you browse: choose how many sightings per hour and how many bugs per sighting.
-- Adjustable crawl speed, from 25% to 250% of natural speed.
+- Adjustable crawl speed, from 50% to 250% of natural speed.
 - Pick which bugs can appear and how often each one shows up.
 - List sites where bugs should never appear (for example your email or bank).
 - Click the toolbar icon to release a wave of bugs on the current page right away.

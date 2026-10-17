@@ -41,7 +41,8 @@ export default {
   abundance: 0.4,   // turns up less than other bugs at any slider setting
   maxTurn: 6,
   wander: 1.2,
-  stride: 35,          // long legs, long strides: its legs blur less
+  stride: 35,
+  twitchy: true,   // known for darting, stop-start movement          // long legs, long strides: its legs blur less
   // Legs attach along the whole trunk, one pair per segment; the test suite checks every hip lies within it.
   anatomy: { legSection: [-46, 38], hips: LEGS.map(l => l.hx) },
   draw(ctx, bug) {

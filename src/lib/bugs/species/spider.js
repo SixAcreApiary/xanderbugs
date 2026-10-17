@@ -224,7 +224,8 @@ function makeSpider(br) {
     maxTurn: 5,
     wander: 0.9,
     stride: 18 * legLen * (br.stride ?? 1),   // long-legged kinds take longer steps, and quick runners longer still
-    keepApart: Math.min(1.6, 0.8 * legLen),   // personal space from other spiders (fraction of size): legs at most touch
+    keepApart: Math.min(1.6, 0.8 * legLen),
+    twitchy: br.eyes === 'jumper',   // jumping spiders move in sudden starts and stops   // personal space from other spiders (fraction of size): legs at most touch
     draw(ctx, bug) {
       const L = bug.light;
       withBugFrame(ctx, bug, () => {

@@ -64,8 +64,9 @@ test('save then load round-trips through storage under a single key', async () =
   assert.deepEqual(s.bugs.species, ['spider']);
 });
 
-test('crawl speed is clamped to 25%..250%', () => {
-  assert.equal(validate({ bugs: { speed: 0.01 } }).bugs.speed, 0.25);
+test('crawl speed is clamped to 50%..250%', () => {
+  assert.equal(validate({ bugs: { speed: 0.01 } }).bugs.speed, 0.5);
+  assert.equal(validate({ bugs: { speed: 0.25 } }).bugs.speed, 0.5, 'an old quarter-speed setting is raised to half');
   assert.equal(validate({ bugs: { speed: 9 } }).bugs.speed, 2.5);
   assert.equal(validate({ bugs: { speed: '1.5' } }).bugs.speed, 1.5);
   assert.equal(validate({ bugs: { speed: 'zoom' } }).bugs.speed, 1);
