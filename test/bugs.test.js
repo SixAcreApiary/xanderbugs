@@ -572,7 +572,7 @@ test('who takes fright at a touch follows soft rules: prey from predator, small 
   const a = bug('cockroach', 49, 0), b = bug('cockroach', 49.5, 80);
   assert.equal(startleCandidate(a, b), a);
   // Colony mates jostle all the time: far less likely to take fright than strangers.
-  const ant1 = bug('ant', 27), ant2 = bug('fieldant', 27.5), roachSmall = bug('cockroach', 27.5);
+  const ant1 = bug('ant', 27), ant2 = bug('harvesterant', 27.5), roachSmall = bug('cockroach', 27.5);
   assert.ok(sameColony(ant1, ant2) && !sameColony(ant1, roachSmall));
   assert.ok(startleChance(ant1, ant2) < startleChance(ant1, roachSmall) * 0.5);
 });
@@ -611,7 +611,7 @@ test('a leg pressing on another bug\'s body counts as a touch: the leg flinches 
   };
   // An ant beside a bumble bee, close enough that its legs reach under the bee's body but not the bee's legs.
   const bee = place('easternbumblebee', 1, 300, 300, 0);
-  const ant = place('fieldant', 2, 300, 300, 0);
+  const ant = place('harvesterant', 2, 300, 300, 0);
   const world = (b, p) => ({ x: b.x + (p.x * Math.cos(b.heading) - p.y * Math.sin(b.heading)) * b.size / 100, y: b.y + (p.x * Math.sin(b.heading) + p.y * Math.cos(b.heading)) * b.size / 100 });
   let found = false;
   for (let dy = bee.size * 0.6; dy > 0 && !found; dy -= 0.5) {
@@ -634,7 +634,7 @@ test('a leg pressing on another bug\'s body counts as a touch: the leg flinches 
 test('long legs get room from every bug: others keep clear of a crane fly, but a hunter still closes on its prey', async () => {
   const { roomBetween } = await import('../src/lib/bugs/engine.js');
   const make = id => createBug(id, { width: 800, height: 600, rng: seeded(2) });
-  const crane = make('cranefly'), ant = make('ant'), ant2 = make('fieldant'), spider = make('spider'), fly = make('housefly');
+  const crane = make('cranefly'), ant = make('ant'), ant2 = make('harvesterant'), spider = make('spider'), fly = make('housefly');
   assert.ok(roomBetween(crane, ant) > crane.size, 'an ant keeps well clear of a crane fly\'s legs');
   assert.equal(roomBetween(ant, ant2), 0, 'short-legged bugs only keep their bodies apart');
   assert.ok(roomBetween(spider, fly) > 0);
@@ -674,7 +674,7 @@ test('swinging feet lift and move forward; IK keeps leg bones at their true leng
 
 test('legs attach only to the thorax (cephalothorax for spiders, trunk for house centipedes), front to back', () => {
   for (const [id, sp] of Object.entries(SPECIES)) {
-    if (id === 'centipede') continue;   // one pair per trunk segment; checked by its own renderer
+    if (sp.trail) continue;   // segmented bodies (centipedes, caterpillars) carry their legs on their own segments
     assert.ok(sp.anatomy, `${id} declares its leg-bearing section`);
     const { legSection: [lo, hi], hips } = sp.anatomy;
     assert.equal(hips.length, SPIDER_IDS.includes(id) ? 4 : id === 'housecentipede' ? 15 : 3, `${id} leg pairs`);
@@ -887,6 +887,40 @@ test('fly legs are posed in 3D like a spider\'s: knees flex through a stride but
     }
     assert.ok(lo > 30 && hi < 162, `${id}: knee ranges ${lo.toFixed(0)}-${hi.toFixed(0)} deg`);
   }
+});
+
+test('ladybugs: twelve kinds in their own group, each its own colours and markings', async () => {
+  const { LADYBUG_BREEDS, LADYBUG_IDS } = await import('../src/lib/bugs/species/ladybugs.js');
+  assert.equal(LADYBUG_IDS.length, 12);
+  for (const id of LADYBUG_IDS) assert.equal(BUG_SPECIES.find(s => s.id === id)?.group, 'Ladybugs', id);
+  const looks = new Set(LADYBUG_BREEDS.map(b => JSON.stringify([b.shellColors, b.spots, b.bands, b.pronotum.mark, b.rings, b.tail, b.squares])));
+  assert.equal(looks.size, 12, 'no two look alike');
+});
+
+test('caterpillars: twelve kinds in their own group, the woolly bear among them', async () => {
+  const { CATERPILLAR_BREEDS, CATERPILLAR_IDS } = await import('../src/lib/bugs/species/caterpillars.js');
+  assert.equal(CATERPILLAR_IDS.length, 12);
+  assert.ok(CATERPILLAR_IDS.includes('woollybear'));
+  for (const id of CATERPILLAR_IDS) {
+    assert.equal(BUG_SPECIES.find(s => s.id === id)?.group, 'Caterpillars', id);
+    assert.ok(SPECIES[id].trail, `${id}'s body follows its head`);
+  }
+  const looks = new Set(CATERPILLAR_BREEDS.map(b => JSON.stringify([b.body, b.width, b.rings, b.hair && b.hair.len, b.fur, b.knobs, b.stripe, b.chevrons, b.saddle, b.spines, b.eyespots, b.loops])));
+  assert.equal(looks.size, 12, 'no two look alike');
+});
+
+test('a caterpillar crawls with a wave from tail to head; an inchworm loops', async () => {
+  const { CATERPILLAR_BREEDS, bodySegments } = await import('../src/lib/bugs/species/caterpillars.js');
+  const br = id => CATERPILLAR_BREEDS.find(b => b.id === id);
+  const bug = { x: 400, y: 300, heading: 0, size: 140, trail: Array.from({ length: 300 }, (_, i) => ({ x: 400 - i, y: 300 })) };
+  const lifted = phase => { bug.phase = phase; const segs = bodySegments(br('monarchcaterpillar'), bug); return segs.reduce((m, s, i) => (s.lift > segs[m].lift ? i : m), 0); };
+  const early = lifted(0.4), later = lifted(3);
+  assert.ok(later < early, `the lifted segment moves forward (segment ${early} then ${later})`);
+  const length = phase => { bug.phase = phase; const s = bodySegments(br('inchworm'), bug); return Math.hypot(s[0].x - s.at(-1).x, s[0].y - s.at(-1).y); };
+  assert.ok(length(Math.PI) < length(0) * 0.7, 'looped up, the inchworm is much shorter');
+  bug.phase = Math.PI;
+  const mid = bodySegments(br('inchworm'), bug);
+  assert.ok(mid[6].lift > 0.9 && mid[0].lift < 0.1, 'its middle arches up while its ends stay down');
 });
 
 test('flies are prey to spiders, centipedes and yellowjackets; robber flies hunt other flies and bees', async () => {
@@ -2100,9 +2134,12 @@ test('bees never get stuck walking round in circles (dances and fleeing aside)',
   assert.equal(loops, 0, `${loops} bees walked round in a circle`);
 });
 
-test('several kinds of ant, from big carpenter ants down to tiny pharaoh ants, each in its own colours', () => {
-  assert.ok(ANT_IDS.length >= 6 && ANT_IDS[0] === 'ant', 'the original ant id is kept (carpenter ants)');
-  const sizes = ANT_BREEDS.map(b => b.size[1]);
+test('twelve kinds of ant, from big carpenter ants down to tiny ghost ants, each its own shape or colours', async () => {
+  assert.ok(ANT_IDS.length === 12 && ANT_IDS[0] === 'ant', 'the original ant id is kept (carpenter ants)');
+  for (const gone of ['fieldant', 'pavementant', 'odoroushouseant']) assert.equal(SPECIES[gone], undefined, `${gone} removed (too like others)`);
+  const { validate } = await import('../src/lib/settings.js');
+  assert.deepEqual(validate({ bugs: { species: ['fieldant', 'ant', 'pavementant'] } }).bugs.species, ['ant'], 'old saved choices of removed ants are dropped');
+  const sizes = ANT_IDS.map(id => SPECIES[id].size[1]);
   assert.ok(Math.max(...sizes) / Math.min(...sizes) > 3, 'sizes span the real range');
   assert.equal(new Set(ANT_BREEDS.map(b => b.front.join() + b.gaster.join())).size, ANT_BREEDS.length, 'each kind looks different');
   for (const id of ANT_IDS) assert.ok(BUG_SPECIES.some(s => s.id === id && s.group === 'Ants'), `${id} listed under Ants`);
@@ -2110,7 +2147,7 @@ test('several kinds of ant, from big carpenter ants down to tiny pharaoh ants, e
 
 test('ants greet and follow the trails of their own kind only', () => {
   const a = createBug('fireant', { width: 800, height: 600, rng: seeded(1) });
-  const b = createBug('pavementant', { width: 800, height: 600, rng: seeded(2) });
+  const b = createBug('acrobatant', { width: 800, height: 600, rng: seeded(2) });
   Object.assign(a, { x: 400, y: 300, heading: 0, entered: true, affinity: 1 });
   Object.assign(b, { x: 400 + a.size * 1.2, y: 300, heading: Math.PI, entered: true, affinity: 1 });
   for (let f = 0; f < 240; f++) { stepBug(a, 1 / 60, 800, 600, [a, b]); stepBug(b, 1 / 60, 800, 600, [a, b]); }

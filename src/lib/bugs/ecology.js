@@ -4,9 +4,13 @@ import { BUMBLE_IDS } from './species/bumblebee.js';
 import { PHOTINUS_IDS } from './species/firefly.js';
 import { SPIDER_IDS, SPIDER_BREEDS } from './species/spider.js';
 import { FLY_IDS } from './species/flies.js';
+import { LADYBUG_IDS } from './species/ladybugs.js';
+import { CATERPILLAR_BREEDS } from './species/caterpillars.js';
 
 const all = ids => w => Object.fromEntries(ids.map(id => [id, w]));
-const bees = all(BEE_IDS), ants = all(ANT_IDS), bumbles = all(BUMBLE_IDS), spiders = all(SPIDER_IDS), flies = all(FLY_IDS);
+const bees = all(BEE_IDS), ants = all(ANT_IDS), bumbles = all(BUMBLE_IDS), spiders = all(SPIDER_IDS), flies = all(FLY_IDS), ladybugs = all(LADYBUG_IDS);
+// How readily each caterpillar is taken (stinging and hairy ones are mostly left alone), scaled per hunter.
+const caterpillars = w => Object.fromEntries(CATERPILLAR_BREEDS.map(b => [b.id, w * b.prey]));
 const otherFlies = all(FLY_IDS.filter(id => id !== 'robberfly'));
 
 // Who hunts whom, roughly as in nature. PREDATION[predator][prey] is how dangerous the predator is to that
@@ -22,13 +26,16 @@ const otherFlies = all(FLY_IDS.filter(id => id !== 'robberfly'));
 //    ambusher.
 //  - Every kind of ant counts as an ant (prey for the same hunters, and a nibbler of small prey itself).
 //  - Flies are prey to spiders, centipedes and yellowjackets; robber flies hunt other flies and bees on the wing.
+//  - Lady beetles taste bad: only spiders bother them, and not much.
+//  - Caterpillars are prey to yellowjackets above all, and to spiders and centipedes; the stinging and hairy ones
+//    much less.
 // Stink bugs are left alone: nobody hunts them, and their smell makes everyone keep a wider berth.
 export const PREDATION = {
-  housecentipede: { silverfish: 1, bedbug: 1, ...flies(0.8), cockroach: 0.8, ...spiders(0.7), earwig: 0.6, ...ants(0.5) },
-  centipede: { cockroach: 0.9, silverfish: 0.9, earwig: 0.7, ...spiders(0.6), bedbug: 0.6, ...flies(0.4), beetle: 0.4, ...ants(0.4) },
-  ...Object.fromEntries(SPIDER_IDS.map(id => [id, { ...flies(0.9), silverfish: 0.8, bedbug: 0.7, earwig: 0.5, cockroach: 0.4, ...ants(0.3), ...bees(0.4), ...bumbles(0.3) }])),
+  housecentipede: { ...caterpillars(0.5), silverfish: 1, bedbug: 1, ...flies(0.8), cockroach: 0.8, ...spiders(0.7), earwig: 0.6, ...ants(0.5) },
+  centipede: { ...caterpillars(0.8), cockroach: 0.9, silverfish: 0.9, earwig: 0.7, ...spiders(0.6), bedbug: 0.6, ...flies(0.4), beetle: 0.4, ...ants(0.4) },
+  ...Object.fromEntries(SPIDER_IDS.map(id => [id, { ...flies(0.9), ...ladybugs(0.2), ...caterpillars(0.6), silverfish: 0.8, bedbug: 0.7, earwig: 0.5, cockroach: 0.4, ...ants(0.3), ...bees(0.4), ...bumbles(0.3) }])),
   crabspider: { ...flies(0.9), silverfish: 0.8, bedbug: 0.7, earwig: 0.5, cockroach: 0.4, ...ants(0.3), ...bees(0.7), ...bumbles(0.6) },
-  yellowjacket: { ...spiders(0.8), ...flies(0.6), bedbug: 0.3, silverfish: 0.3, ...bees(0.9), ...bumbles(0.25) },
+  yellowjacket: { ...spiders(0.8), ...flies(0.6), ...caterpillars(1), bedbug: 0.3, silverfish: 0.3, ...bees(0.9), ...bumbles(0.25) },
   ...Object.fromEntries(ANT_IDS.map(id => [id, { bedbug: 0.4, silverfish: 0.3 }])),
   beetle: { ...ants(0.3), silverfish: 0.3, bedbug: 0.3 },
   loopyfivefirefly: all(PHOTINUS_IDS)(0.6),

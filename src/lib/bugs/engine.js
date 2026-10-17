@@ -8,6 +8,8 @@ import beetle from './species/beetle.js';
 import earwig from './species/earwig.js';
 import yellowjacket from './species/yellowjacket.js';
 import { FLIES } from './species/flies.js';
+import { LADYBUGS } from './species/ladybugs.js';
+import { CATERPILLARS } from './species/caterpillars.js';
 import stinkbug from './species/stinkbug.js';
 import bedbug from './species/bedbug.js';
 import housecentipede from './species/housecentipede.js';
@@ -18,7 +20,7 @@ import { sampleTrail } from './species/centipede.js';
 import { danger, REPELLENT, LOOM } from './ecology.js';
 import { lifeScale } from './lifesize.js';
 
-export const SPECIES = Object.fromEntries([...ANTS, cockroach, centipede, ...SPIDERS, silverfish, beetle, earwig, yellowjacket, stinkbug, bedbug, housecentipede, ...BEES, ...BUMBLES, ...FIREFLIES, ...FLIES].map(s => [s.id, s]));
+export const SPECIES = Object.fromEntries([...ANTS, cockroach, centipede, ...SPIDERS, silverfish, beetle, earwig, yellowjacket, stinkbug, bedbug, housecentipede, ...BEES, ...BUMBLES, ...FIREFLIES, ...FLIES, ...LADYBUGS, ...CATERPILLARS].map(s => [s.id, s]));
 
 const MAX_LIFETIME_S = 45;
 const NEVER_ENTERED_S = 12;
@@ -438,7 +440,7 @@ export function stepBug(b, dt, width, height, others = [], pointer = null) {
     const last = b.trail[0];
     if (!last || Math.hypot(last.x - b.x, last.y - b.y) > 1) {
       b.trail.unshift({ x: b.x, y: b.y });
-      if (b.trail.length > 400) b.trail.length = 400;
+      if (b.trail.length > Math.max(400, b.size * 2)) b.trail.length = Math.max(400, Math.ceil(b.size * 2));   // long enough for the whole body
     }
   }
 
@@ -466,7 +468,9 @@ export function stepBug(b, dt, width, height, others = [], pointer = null) {
   if (inside) b.entered = true;
   b.fullyIn = wholeBodyOnScreen(b, width, height);
   const farOut = b.x < -pad * 2 || b.y < -pad * 2 || b.x > width + pad * 2 || b.y > height + pad * 2;
-  if ((b.entered && farOut && b.waypoints.length === 1) || (!b.entered && b.age > NEVER_ENTERED_S / Math.min(1, b.speedScale))) b.done = true;
+  // A big, slow crawler starts further off screen and needs longer to walk on: give it time for the distance.
+  const enterBy = Math.max(NEVER_ENTERED_S, (4 * b.size) / Math.max(1, b.cruise));
+  if ((b.entered && farOut && b.waypoints.length === 1) || (!b.entered && b.age > enterBy / Math.min(1, b.speedScale))) b.done = true;
   checkStuck(b, hood, Math.hypot(b.x - x0, b.y - y0), dt);
   b.light = localLight(b.heading);
 }
@@ -477,7 +481,7 @@ const grounded = (b, o) => o !== b && !o.done && o.delay <= 0 && o.entered;
 // discs down the midline; a centipede's position is its head and its body trails behind along its path.
 export function bodyDiscs(b, heading = b.heading, x = b.x, y = b.y) {
   if (b.trail) {
-    return sampleTrail(b.trail, x, y, heading, b.size / 5, 6).map(p => ({ x: p.x, y: p.y, r: b.size * 0.08 }));
+    return sampleTrail(b.trail, x, y, heading, b.size / 5, 6).map(p => ({ x: p.x, y: p.y, r: b.size * (b.species.trailDiscR ?? 0.08) }));
   }
   const hx = Math.cos(heading), hy = Math.sin(heading), r = b.size * (b.species.discR ?? 0.14);
   const along = b.caste === 'queen' ? [-0.52, -0.3, -0.05, 0.22] : [-0.3, -0.05, 0.22];   // a queen's long abdomen
