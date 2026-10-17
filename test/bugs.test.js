@@ -500,6 +500,28 @@ test('legs pivot at the body edge: the visible joint stays put while the leg wal
   assert.equal(bases.size, 1, 'femur always starts from the same point on the body');
 });
 
+test('every species: each leg leaves the body at a fixed point while it walks', async () => {
+  const { auditSpecies } = await import('./helpers/legaudit.js');
+  for (const id of Object.keys(SPECIES)) {
+    for (const [turnMix, speedScale] of [[0, 1], [0.6, 1], [0, 0.4]]) {
+      auditSpecies(id, { frames: 24, turnMix, speedScale }).forEach((l, i) => {
+        assert.ok(l.slide <= 0.8, `${id} leg ${i} (turn ${turnMix}, speed ${speedScale}): joint slides ${l.slide.toFixed(2)} units along the body`);
+      });
+    }
+  }
+});
+
+test('a leg mostly hidden under the body keeps a femur stub and stands from its pivot', async () => {
+  const { legPivot } = await import('../src/lib/bugs/common.js');
+  const segs = [[16, 0, 3], [16, 0.4, 2.4], [8, 0.2, 1.6]];
+  const deep = legPivot(9, 1, segs, 15);
+  assert.equal(deep.py, 24, 'pivot sits on the outline');
+  assert.ok(deep.stub && deep.segs[0][0] === 16 * 0.35);
+  const shallow = legPivot(-9, -1, segs, 4);
+  assert.equal(shallow.py, -13);
+  assert.ok(!shallow.stub && shallow.segs[0][0] === 12);
+});
+
 test('every species tells its walking legs where the body edge is', async () => {
   const { readFile, readdir } = await import('node:fs/promises');
   const dir = new URL('../src/lib/bugs/species/', import.meta.url);

@@ -1,4 +1,4 @@
-import { withBugFrame, bodyGradient, specular, groundShadow, walkLeg, insectGait, antenna, TAU, bodyEdge, mirroredPath } from '../common.js';
+import { withBugFrame, bodyGradient, specular, groundShadow, walkLeg, insectGait, antenna, TAU, bodyEdge, outlineEdge, mirroredPath } from '../common.js';
 
 // Flashing fireflies (Lampyridae). Flash patterns follow the Firefly Atlas (fireflyatlas.org) where it gives them,
 // and published accounts for the Smokies synchronous firefly. A male repeats his pattern; a female doesn't flash
@@ -137,12 +137,13 @@ export function updateFlash(b, dt, others) {
 // beyond them.
 const SHIELD = { back: 17, cx: 19, rx: 20, ry: 14.5 };
 const ELYTRA = [[17, 14.5], [-25, 14.5], [-32, 12.5], [-36, 8], [-37.5, 3], [-37.5, 0]];   // right half, mirrored
-const OUTLINE = [[14, 9, 10]];   // the thorax beneath, where the legs leave the body
 const LEGS = [
   { x: 20, angle: 0.95 },
   { x: 14, angle: 1.65 },
   { x: 8, angle: 2.3 }
 ];
+// The legs leave the thorax out of sight; seen from above they come out from under the shield and wing covers.
+const coverEdge = x => Math.max(bodyEdge(x, [[SHIELD.cx, SHIELD.rx, SHIELD.ry]]), outlineEdge(x, ELYTRA));
 export const LANTERN_X = -40;     // the light organ on the last abdominal segments
 
 const rgb = ([r, g, b], a) => `rgba(${r},${g},${b},${a})`;
@@ -277,7 +278,7 @@ function makeFirefly(br) {
         groundShadow(ctx, L, -4, 0, 44, 16);
         for (const side of [-1, 1]) {
           LEGS.forEach((l, i) => {
-            walkLeg(ctx, bug, { hx: l.x, hy: side * 4, edge: bodyEdge(l.x, OUTLINE) - 4, side, angle: l.angle, ...insectGait(bug, i, side), color: look.legs, segs: [
+            walkLeg(ctx, bug, { hx: l.x, hy: side * 4, edge: coverEdge(l.x) - 4, side, angle: l.angle, ...insectGait(bug, i, side), color: look.legs, segs: [
               [12 * legLength, 0, 1.8], [13 * legLength, i === 0 ? -0.4 : 0.4, 1.4], [8 * legLength, 0.2, 1]
             ] });
           });
