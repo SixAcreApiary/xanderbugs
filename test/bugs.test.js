@@ -813,7 +813,7 @@ test('fast bugs in huge windows never get stuck circling', () => {
   for (const [w, h] of [[3840, 2160], [7680, 4320]]) {
     for (const id of Object.keys(SPECIES)) {
       for (let seed = 1; seed <= 4; seed++) {
-        const swarm = new Swarm({ species: [id], count: 2, width: w, height: h, speed: 2.5, rng: seeded(seed * 13) });
+        const swarm = new Swarm({ species: [id], count: 2, width: w, height: h, speed: 1.5, rng: seeded(seed * 13) });
         assert.equal(circlingEpisodes(swarm, 60), 0, `${id} seed ${seed} circled in a ${w}x${h} window`);
       }
     }
@@ -822,7 +822,7 @@ test('fast bugs in huge windows never get stuck circling', () => {
 
 test('even the slowest bug eventually leaves a 4K window at max speed', () => {
   for (const id of Object.keys(SPECIES)) {
-    const swarm = new Swarm({ species: [id], count: 2, width: 3840, height: 2160, speed: 2.5, rng: seeded(29) });
+    const swarm = new Swarm({ species: [id], count: 2, width: 3840, height: 2160, speed: 1.5, rng: seeded(29) });
     let t = 0;
     const limit = leaveBy(swarm, 180);
     while (!swarm.done && t < limit) { swarm.update(1 / 30); t += 1 / 30; }
@@ -994,6 +994,25 @@ test('caterpillars: twelve kinds in their own group, the woolly bear among them'
   assert.equal(looks.size, 12, 'no two look alike');
 });
 
+test('some hornworms carry parasitic wasp cocoons; the inchworm is matte', async () => {
+  const { CATERPILLAR_BREEDS } = await import('../src/lib/bugs/species/caterpillars.js');
+  const fills = (id, variant) => {
+    const seen = [];
+    const ctx = new Proxy({}, { get: (t, k) => k in t ? t[k] : (k.startsWith('create') ? () => ({ addColorStop() {} }) : () => {}), set: (t, k, v) => { if (k === 'fillStyle' || k === 'strokeStyle') seen.push(v); t[k] = v; return true; } });
+    const b = createBug(id, { width: 800, height: 600, rng: seeded(3) });
+    Object.assign(b, { x: 400, y: 300, heading: 0, variant });
+    b.trail = Array.from({ length: 600 }, (_, i) => ({ x: 400 - i, y: 300 }));
+    SPECIES[id].draw(ctx, b, 1 / 60);
+    return seen;
+  };
+  const cocoon = '#fffef6';
+  assert.ok(fills('hornworm', 0.1).includes(cocoon), 'a parasitized hornworm shows cocoons');
+  assert.ok(!fills('hornworm', 0.9).includes(cocoon), 'most hornworms are clean');
+  const br = CATERPILLAR_BREEDS.find(b => b.id === 'hornworm');
+  assert.ok(br.parasites > 0 && br.parasites < 0.5, 'parasitized hornworms are a minority');
+  assert.ok(CATERPILLAR_BREEDS.find(b => b.id === 'inchworm').matte);
+});
+
 test('a caterpillar crawls with a gentle wave from tail to head; an inchworm loops', async () => {
   const { CATERPILLAR_BREEDS, bodySegments } = await import('../src/lib/bugs/species/caterpillars.js');
   const br = id => CATERPILLAR_BREEDS.find(b => b.id === id);
@@ -1034,6 +1053,65 @@ test('a caterpillar crawls with a gentle wave from tail to head; an inchworm loo
   w.phase = Math.PI;
   const mid = bodySegments(br('inchworm'), w);
   assert.ok(mid[6].lift > 0.9 && mid[0].lift < 0.1, 'its middle arches up while its ends stay down');
+  // A loop, not a squeezed spring: the ends keep their spacing, the steep sides bunch up seen from above, the top
+  // spreads out, and the top stands well clear of the ground.
+  const gap = i => Math.hypot(mid[i].x - mid[i + 1].x, mid[i].y - mid[i + 1].y), seg = w.size / 12;
+  assert.ok(gap(0) > seg * 0.95 && gap(11) > seg * 0.95, 'the gripping ends stay flat and full length');
+  assert.ok(gap(6) > gap(2) * 2, `the top of the loop spreads over its steep sides (${(gap(6) / gap(2)).toFixed(2)})`);
+  assert.ok(mid[6].rise > 20 && mid[2].rise === 0 && mid[11].rise === 0, 'it stands up in a loop between its legs');
+});
+
+test("a caterpillar's fine detail is drawn once into sprites and stamped each frame after", async () => {
+  const { spriteCache } = await import('../src/lib/bugs/species/caterpillars.js');
+  const made = [];
+  globalThis.OffscreenCanvas = class {
+    constructor(w, h) { this.width = w; this.height = h; const m = mockCanvas(); made.push(m); this.ctx = m.ctx; m.ctx.getImageData = () => { const data = new Uint8ClampedArray(w * h * 4); data[((h >> 1) * w + (w >> 1)) * 4 + 3] = 255; return { data }; }; }
+    getContext() { return this.ctx; }
+  };
+  const was = spriteCache.enabled;
+  spriteCache.enabled = true;
+  spriteCache.clear();
+  try {
+    const b = createBug('woollybear', { width: 800, height: 600, rng: seeded(3) });
+    Object.assign(b, { x: 400, y: 300, heading: 0 });
+    b.trail = Array.from({ length: 600 }, (_, i) => ({ x: 400 - i, y: 300 }));
+    const frame = () => { const m = mockCanvas(); m.ctx.getTransform = () => ({ a: 2, b: 0 }); SPECIES.woollybear.draw(m.ctx, b, 1 / 60); return m.calls; };
+    frame();
+    const sprites = spriteCache.size, canvases = made.length;
+    assert.ok(sprites >= 13, `a sprite for each segment (${sprites})`);
+    assert.ok(made.some(m => m.calls.filter(c => c === 'stroke').length > 50), 'the bristles are drawn into the sprites');
+    const calls = frame();
+    assert.equal(spriteCache.size, sprites, 'the next frame reuses them');
+    assert.equal(made.length, canvases, 'and draws no new ones');
+    assert.ok(calls.filter(c => c === 'drawImage').length >= 13, 'it stamps the sprites');
+    assert.ok(calls.filter(c => c === 'stroke').length < 100, `and strokes little itself (${calls.filter(c => c === 'stroke').length})`);
+  } finally {
+    spriteCache.enabled = was;
+    spriteCache.clear();
+    delete globalThis.OffscreenCanvas;
+  }
+});
+
+test('a caterpillar starts just out of sight, so even a slow one shows up within a few seconds', async () => {
+  const { bodyDiscs } = await import('../src/lib/bugs/engine.js');
+  const { CATERPILLAR_IDS } = await import('../src/lib/bugs/species/caterpillars.js');
+  const firsts = [];
+  for (let seed = 1; seed <= 8; seed++) {
+    const sw = new Swarm({ species: CATERPILLAR_IDS, count: 10, width: 1600, height: 900, rng: seeded(seed) });
+    for (const b of sw.bugs) assert.ok(bodyDiscs(b).every(d => d.x + d.r <= 0 || d.y + d.r <= 0 || d.x - d.r >= 1600 || d.y - d.r >= 900), `${b.species.id} starts out of sight`);
+    let t = 0;
+    while (!sw.bugs.some(b => b.delay <= 0 && b.x > 0 && b.y > 0 && b.x < 1600 && b.y < 900) && t < 60) { sw.update(1 / 30); t += 1 / 30; }
+    firsts.push(t);
+  }
+  assert.ok(Math.max(...firsts) < 6, `first caterpillar on screen after ${Math.max(...firsts).toFixed(1)} s`);
+});
+
+test('a slow caterpillar touching another it can crawl over is not "stuck", so it never swivels on the spot', async () => {
+  const { checkStuck } = await import('../src/lib/bugs/engine.js');
+  const a = createBug('hornworm', { width: 800, height: 600, rng: seeded(1) }), o = createBug('hornworm', { width: 800, height: 600, rng: seeded(2) });
+  for (const [b, x] of [[a, 300], [o, 300]]) { Object.assign(b, { x, y: 300, heading: 0, entered: true, paused: false }); b.trail = Array.from({ length: 400 }, (_, i) => ({ x: x - i, y: 300 })); }
+  for (let f = 0; f < 300; f++) checkStuck(a, [o], a.cruise / 60, 1 / 60);   // crawling at its own pace, on top of another
+  assert.ok(!a.loosen, 'crawling at its ordinary pace over another caterpillar');
 });
 
 test('caterpillars crawl over other bugs and are walked over, so a crowd never wedges them', async () => {
@@ -2416,7 +2494,7 @@ test('bugs close on purpose (tending, fighting, greeting, resting) never count a
 });
 
 test('with every bug switched on, none stays stuck against another for long', async () => {
-  const { bodyDiscs } = await import('../src/lib/bugs/engine.js');
+  const { bodyDiscs, passable } = await import('../src/lib/bugs/engine.js');
   const gap = (a, b) => Math.min(...bodyDiscs(a).flatMap(m => bodyDiscs(b).map(t => Math.hypot(t.x - m.x, t.y - m.y) - m.r - t.r)));
   let worst = 0;
   for (const seed of [1, 2]) {
@@ -2429,7 +2507,10 @@ test('with every bug switched on, none stays stuck against another for long', as
       all.forEach((b, i) => {
         if (b.done || b.delay > 0 || !b.entered || b.paused || b.attend || b.duel || b.meet || b.dance) return stuck.delete(b);
         const near = all.filter(o => o !== b && !o.done && o.delay <= 0 && Math.hypot(o.x - b.x, o.y - b.y) < o.size + b.size);
-        if (Math.hypot(b.x - pos[i][0], b.y - pos[i][1]) < b.size * 0.25 / 60 && near.some(o => gap(b, o) < b.size * 0.06)) {
+        // Standing still for this bug (a caterpillar's crawl is slower than most bugs' standstill), against one it
+        // can't crawl over.
+        const still = Math.min(b.size * 0.25, b.cruise * 0.3) / 60;
+        if (Math.hypot(b.x - pos[i][0], b.y - pos[i][1]) < still && near.some(o => !passable(b, o) && gap(b, o) < b.size * 0.06)) {
           const t = (stuck.get(b) ?? 0) + 1 / 60;
           stuck.set(b, t);
           worst = Math.max(worst, t);

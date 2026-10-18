@@ -96,7 +96,7 @@ export const OTHER_GROUP = 'Other bugs';
 export const LIMITS = {
   perHour: { min: 0, max: 60 },
   perSwarm: { min: 1, max: 40 },   // above ~40 a few releases at once start to cost a smooth frame
-  speed: { min: 0.5, max: 2.5 },   // slower than half speed, bugs take ages to come on screen
+  speed: { min: 0.5, max: 1.5 },   // slower than half speed, bugs take ages to come on screen; faster, they look frantic
   weight: { min: 1, max: 10, default: 5 },
   devicePxPerMm: { min: 1, max: 40 },   // a screen calibration: physical pixels per millimetre
   blocklistEntries: 200,

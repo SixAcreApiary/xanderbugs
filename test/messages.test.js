@@ -30,7 +30,8 @@ test('spawn speed is optional but must be in range', () => {
   const base = { target: 'content', type: 'spawn', species: ['ant'], count: 1 };
   assert.ok(isValidMessage({ ...base, speed: 0.5 }));
   assert.ok(!isValidMessage({ ...base, speed: 0.25 }), 'below the slowest crawl speed');
-  assert.ok(isValidMessage({ ...base, speed: 2.5 }));
+  assert.ok(isValidMessage({ ...base, speed: 1.5 }));
+  assert.ok(!isValidMessage({ ...base, speed: 2.5 }), 'above the fastest crawl speed');
   assert.equal(isValidMessage({ ...base, speed: 0.1 }), false);
   assert.equal(isValidMessage({ ...base, speed: 10 }), false);
   assert.equal(isValidMessage({ ...base, speed: '2' }), false);

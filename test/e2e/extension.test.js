@@ -223,7 +223,7 @@ test('two settings tabs and the right-click switch never undo each other\'s choi
   await A.locator('#species input[value=ant]').uncheck();
   await A.waitForTimeout(700);
   assert.equal(await B.locator('#species input[value=ant]').isChecked(), false, 'other tab updates live');
-  await B.locator('#bug-speed').fill('200');
+  await B.locator('#bug-speed').fill('140');
   await B.locator('#bug-speed').dispatchEvent('input');
   await B.waitForTimeout(700);
   assert.ok(!(await stored()).bugs.species.includes('ant'), 'saving in tab B keeps tab A\'s change');

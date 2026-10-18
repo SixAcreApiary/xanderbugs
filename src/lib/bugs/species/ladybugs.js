@@ -11,7 +11,7 @@ const PX_PER_MM = 2.8;   // the scale the rest of the bugs are drawn at
 // seam and is drawn once. They are mirrored onto the left cover.
 const RED = ['#ff6a50', '#d81c10', '#6a0804'];
 const BLACK_SHELL = ['#5a5658', '#121012', '#020202'];
-const BASE = { shell: [-8, 30, 32], spotColor: '#120c0a', pronotum: { colors: BLACK_SHELL, mark: 'whiteCorners' }, legs: '#141010', speed: [25, 50], stride: 7 };
+const BASE = { shell: [-8, 30, 27], spotColor: '#120c0a', pronotum: { colors: BLACK_SHELL, mark: 'whiteCorners' }, legs: '#141010', speed: [25, 50], stride: 7 };
 
 export const LADYBUG_BREEDS = [
   // Coccinella septempunctata: red, seven black spots (one on the seam), white corners on a black pronotum.
@@ -22,17 +22,17 @@ export const LADYBUG_BREEDS = [
     pronotum: { colors: ['#fff6e0', '#e8dcc0', '#8a7a5a'], mark: 'M' },
     spots: [[0.55, 0.35, 0.08], [0.3, 0.72, 0.08], [0.1, 0.3, 0.09], [-0.15, 0.62, 0.08], [-0.4, 0.28, 0.08], [-0.55, 0.7, 0.07], [-0.78, 0.4, 0.07]] },
   // Hippodamia convergens: orange-red, a little oval, small spots, two white dashes converging on the pronotum.
-  { id: 'convergentladybug', label: 'Convergent', mm: 5.5, shell: [-8, 31, 28], shellColors: ['#ff8a5a', '#e0401c', '#6a1404'],
+  { id: 'convergentladybug', label: 'Convergent', mm: 5.5, shell: [-8, 31, 23], shellColors: ['#ff8a5a', '#e0401c', '#6a1404'],
     pronotum: { colors: BLACK_SHELL, mark: 'converging' },
     spots: [[0.7, 0.3, 0.07], [0.35, 0.6, 0.07], [0.05, 0.35, 0.08], [-0.25, 0.7, 0.07], [-0.5, 0.35, 0.08], [-0.75, 0.55, 0.07]] },
   // Adalia bipunctata: red with a single black spot on each wing cover.
   { id: 'twospotladybug', label: 'Two-spotted', mm: 4.5, shellColors: RED, pronotum: { colors: BLACK_SHELL, mark: 'whiteSides' },
     spots: [[0.05, 0.5, 0.2]] },
   // Chilocorus stigma: a glossy black dome with one red spot on each cover.
-  { id: 'twicestabbedladybug', label: 'Twice-stabbed', mm: 4.5, shell: [-8, 31, 33], shellColors: BLACK_SHELL, gloss: true,
+  { id: 'twicestabbedladybug', label: 'Twice-stabbed', mm: 4.5, shell: [-8, 31, 30], shellColors: BLACK_SHELL, gloss: true,
     pronotum: { colors: BLACK_SHELL }, spotColor: '#e02414', spots: [[0.05, 0.55, 0.16]] },
   // Propylea quatuordecimpunctata: yellow with black squarish spots that run together like a checkerboard.
-  { id: 'fourteenspotladybug', label: 'Fourteen-spotted', mm: 4, shell: [-8, 31, 29], shellColors: ['#fff07a', '#f0c820', '#7a5a04'],
+  { id: 'fourteenspotladybug', label: 'Fourteen-spotted', mm: 4, shell: [-8, 31, 26], shellColors: ['#fff07a', '#f0c820', '#7a5a04'],
     pronotum: { colors: ['#fff07a', '#f0c820', '#7a5a04'], mark: 'blackTrapezoid' }, squares: true,
     spots: [[0.72, 0.15, 0.17], [0.55, 0.7, 0.14], [0.25, 0.35, 0.17], [-0.05, 0.75, 0.14], [-0.3, 0.3, 0.17], [-0.6, 0.65, 0.14], [-0.8, 0.2, 0.12]] },
   // Psyllobora vigintimaculata: tiny, cream-white with soft tan-brown spots, some running together.
@@ -44,7 +44,7 @@ export const LADYBUG_BREEDS = [
     pronotum: { colors: ['#ffb4c0', '#ec6a82', '#7a2434'], mark: 'twoTriangles' },
     spots: [[0.75, 0, 0.15], [0.5, 0.45, 0.16], [0.15, 0.75, 0.15], [0.05, 0.25, 0.15], [-0.35, 0.55, 0.16], [-0.7, 0.3, 0.15]] },
   // Cryptolaemus montrouzieri: dark brown-black and downy, with an orange head, pronotum and tail end.
-  { id: 'mealybugdestroyer', label: 'Mealybug destroyer', mm: 4, shell: [-8, 31, 28], shellColors: ['#5a4434', '#2a1c14', '#0a0604'],
+  { id: 'mealybugdestroyer', label: 'Mealybug destroyer', mm: 4, shell: [-8, 31, 25], shellColors: ['#5a4434', '#2a1c14', '#0a0604'],
     pronotum: { colors: ['#f0a060', '#c8682a', '#5a2808'] }, tail: '#e08a40', headColor: ['#f0a060', '#c8682a', '#5a2808'] },
   // Cycloneda munda: a polished, unspotted red dome.
   { id: 'polishedladybug', label: 'Polished', mm: 5, shellColors: ['#ff7a5a', '#e02818', '#701006'], gloss: true,
@@ -52,18 +52,20 @@ export const LADYBUG_BREEDS = [
   // Coccinella trifasciata: orange-red crossed by three wavy black bands.
   { id: 'threebandedladybug', label: 'Three-banded', mm: 5, shellColors: ['#ff9a5a', '#e8501c', '#6a1a04'], bands: [0.55, 0, -0.55] },
   // Anatis mali: large, deep red, its black spots each ringed with a pale halo.
-  { id: 'eyespottedladybug', label: 'Eye-spotted', mm: 9, shell: [-8, 32, 30], shellColors: ['#e06a50', '#a8281c', '#4a0a06'], rings: '#f0dc9a',
+  { id: 'eyespottedladybug', label: 'Eye-spotted', mm: 9, shell: [-8, 32, 28], shellColors: ['#e06a50', '#a8281c', '#4a0a06'], rings: '#f0dc9a',
     spots: [[0.75, 0, 0.12], [0.5, 0.5, 0.12], [0.15, 0.25, 0.12], [0.05, 0.75, 0.11], [-0.3, 0.45, 0.12], [-0.62, 0.65, 0.11], [-0.7, 0.2, 0.11]] }
 ].map(b => ({ ...BASE, ...b, pronotum: { ...BASE.pronotum, ...b.pronotum } }));
 export const LADYBUG_IDS = LADYBUG_BREEDS.map(b => b.id);
 
-// Where each part sits (shell centred a little behind 0), and the body's drawn length, head to tail.
+// Where each part sits (shell centred a little behind 0), and the body's drawn length. A lady beetle's length is
+// measured as entomologists do, from the front of the pronotum to the tip of the wing covers: its head is mostly
+// tucked under the pronotum.
 export function ladybugPlan(br) {
   const [cx, rx, ry] = br.shell;
-  const pronotum = { cx: cx + rx * 0.9, rx: rx * 0.3, ry: ry * 0.64 };   // overlapping the front of the shell
-  const head = { cx: pronotum.cx + pronotum.rx * 0.95, rx: rx * 0.2, ry: ry * 0.32 };
+  const pronotum = { cx: cx + rx * 0.9, rx: rx * 0.3, ry: ry * 0.68 };   // overlapping the front of the shell
+  const head = { cx: pronotum.cx + pronotum.rx * 0.7, rx: rx * 0.18, ry: ry * 0.34 };
   const shell = { cx, rx, ry };
-  return { shell, pronotum, head, length: head.cx + head.rx - (cx - rx) };
+  return { shell, pronotum, head, length: pronotum.cx + pronotum.rx - (cx - rx) };
 }
 
 function shellPath(ctx, s) {
