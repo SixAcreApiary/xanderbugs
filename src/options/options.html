@@ -33,10 +33,10 @@
         <label>at least <span class="stepper"><button type="button" class="step" data-set="min" data-for="swarm-min">Min</button><input type="number" id="swarm-min" min="1" max="40"><button type="button" class="step" data-set="max" data-for="swarm-min">Max</button></span></label>
         <label>at most <span class="stepper"><button type="button" class="step" data-set="min" data-for="swarm-max">Min</button><input type="number" id="swarm-max" min="1" max="40"><button type="button" class="step" data-set="max" data-for="swarm-max">Max</button></span></label>
       </div>
-      <p class="hint" id="swarm-limit-hint">Up to 40 bugs per sighting. Every bug on screen is animated and kept clear of the others each frame, and with a few sightings at once, more than that would slow the animation below a smooth frame rate.</p>
+      <p class="hint" id="swarm-limit-hint">Up to 40 per sighting. Note: Releasing too many bugs at the same time can cause videos to stutter.</p>
       <div class="range-row">
         <label for="bug-speed" class="range-label">Crawl speed</label>
-        <input type="range" id="bug-speed" min="50" max="250" step="5" list="speed-marks">
+        <input type="range" id="bug-speed" min="50" max="150" step="5" list="speed-marks">
         <datalist id="speed-marks"><option value="100"></option></datalist>
         <output id="bug-speed-out" for="bug-speed"></output>
         <button type="button" class="quiet" id="speed-natural">Reset to normal speed</button>

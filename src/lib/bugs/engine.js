@@ -30,6 +30,7 @@ const NEVER_ENTERED_S = 12;
 const WAYPOINT_RADIUS = 40;
 const STALL_SECONDS = 2.5;
 const MIN_TRAIL_RADIUS = 0.25;   // tightest turning circle of a trail-following body, in body lengths
+const TRAIL_START = 0.2;         // how far out of sight a trail-following bug's head starts, in body lengths
 const MIN_WALK_RADIUS = 0.5;     // tightest turning circle of any other bug while it's walking, in body lengths
 // A bug whose way is almost completely blocked by another sometimes backs up a little, as real ones do.
 const BACK_PACE = 0.3;           // backing speed, as a fraction of cruising speed
@@ -98,7 +99,7 @@ const LOOSEN_COOLDOWN = 0.5;
 const REST_TURN_MIN = 1.75;      // a resting bug only turns on the spot to face a goal more than ~100 degrees off
 // Personal space: walking bugs steer round anyone within this many combined half-lengths.
 const AVOID_RANGE = 1.6;
-const AVOID_LOOKAHEAD_S = 0.3;   // fast bugs start giving way earlier
+const AVOID_LOOKAHEAD_S = 0.3;
 // Ants that meet head on sometimes stop to touch antennae, as real ants do.
 const MEET_CHANCE = 0.4;
 const MEET_TIME = [1.2, 3];
@@ -157,9 +158,12 @@ export function createBug(speciesId, { width, height, rng = Math.random, delay =
   const size0 = between(rng, sp.size), scale = lifePxPerMm ? lifeScale(sp, size0, lifePxPerMm) : 1;
   const size = size0 * scale;
   const margin = size * 1.6;
+  // Starts just out of sight. A trail-following body (a caterpillar's) lies behind its head, away from the screen,
+  // so its head starts close to the edge; otherwise a slow crawler would take many seconds to appear.
+  const startMargin = sp.trail ? size * TRAIL_START : margin;
   const startEdge = Math.floor(rng() * 4);
   const exitEdge = rng() < 0.65 ? (startEdge + 2) % 4 : (startEdge + 1 + Math.floor(rng() * 3)) % 4;
-  const start = edgePoint(startEdge, width, height, 0.1 + rng() * 0.8, margin);
+  const start = edgePoint(startEdge, width, height, 0.1 + rng() * 0.8, startMargin);
   const exit = edgePoint(exitEdge, width, height, 0.1 + rng() * 0.8, margin * 2);
   const waypoints = [];
   const nWay = 1 + Math.floor(rng() * 2);
@@ -449,7 +453,8 @@ export function stepBug(b, dt, width, height, others = [], pointer = null) {
   else if (b.paused && Math.abs(wrapAngle(desired - b.heading)) < REST_TURN_MIN) maxTurn = 0;
   // A startled bug spins round to run, whatever it was doing.
   if (b.alarm > 0.15 && !sp.trail) maxTurn = Math.max(maxTurn, turnRate * dt * b.alarm);
-  if (b.dance || b.duel || b.loosen) maxTurn = Math.max(maxTurn, turnRate * dt);   // the dance's tight loops; squaring up to a rival
+  // The dance's tight loops; squaring up to a rival; turning to buzz loose (a trail body still only turns as it goes).
+  if (b.dance || b.duel || (b.loosen && !sp.trail)) maxTurn = Math.max(maxTurn, turnRate * dt);
   // Bodies have some inertia: the turn rate eases toward what steering asks rather than flicking to it, or a
   // crowd's push and pull would twitch a bug left and right from frame to frame. A startled bug spins faster.
   const asked = Math.max(-maxTurn, Math.min(maxTurn, diff));
@@ -725,9 +730,11 @@ function bodyGap(a, b) {
 // Notices a bug that has been trying to walk but getting nowhere while touching another, and sets it buzzing loose.
 export function checkStuck(b, hood, moved, dt) {
   const meaning = b.entered && !b.paused && !b.meet && !b.attend && !b.duel && !b.dance && !b.loosen && !(b.hunt?.lunge > 0);
-  b.slow = meaning && moved < b.size * STUCK_PACE * dt ? (b.slow ?? 0) + dt : 0;
+  // Near standstill for this bug: a caterpillar's ordinary crawl is slower than most bugs' standstill.
+  b.slow = meaning && moved < Math.min(b.size * STUCK_PACE, b.cruise * 0.3) * dt ? (b.slow ?? 0) + dt : 0;
   if (b.slow < STUCK_AFTER || b.loosenCooldown > 0) return;
-  const touching = hood.filter(o => bodyGap(b, o) < b.size * 0.06).sort((p, q) => bodyGap(b, p) - bodyGap(b, q))[0];
+  // One it can crawl over (or that can crawl over it) isn't holding it.
+  const touching = hood.filter(o => !passable(b, o) && bodyGap(b, o) < b.size * 0.06).sort((p, q) => bodyGap(b, p) - bodyGap(b, q))[0];
   if (touching) b.loosen = { from: touching, time: LOOSEN_TIME };
   b.slow = 0;
 }
